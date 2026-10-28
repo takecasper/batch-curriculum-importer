@@ -1,6 +1,8 @@
 # Changelog
 
-## Unreleased
+## 0.1.0 - 2026-10-28
+
+First release of One45 Schedule Wrangler: the `wrangler.py` CLI, the `wrangler_gui.py` window with its double-click launcher, and the docs (README, DESIGN, GLOSSARY, IMPORT-FORMAT). The entries below are changes made before this release, since the first commit.
 
 ### Fixed
 
