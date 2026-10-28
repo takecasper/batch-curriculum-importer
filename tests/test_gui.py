@@ -1,5 +1,5 @@
-import importlib.util
-import sys
+import ast
+import re
 import tempfile
 import unittest
 from datetime import datetime
@@ -7,13 +7,10 @@ from pathlib import Path
 
 from openpyxl import load_workbook
 
+# test_wrangler first: importing it puts the repo root on sys.path.
 from test_wrangler import HEADERS, data_tabs, row, write_partner_workbook
 
-GUI = Path(__file__).resolve().parent.parent / "wrangler-gui.py"
-spec = importlib.util.spec_from_file_location("wrangler_gui", GUI)
-gui = importlib.util.module_from_spec(spec)
-sys.modules["wrangler_gui"] = gui
-spec.loader.exec_module(gui)
+import wrangler_gui as gui
 
 
 class GuiTestCase(unittest.TestCase):
@@ -203,6 +200,39 @@ class CalloutTests(GuiTestCase):
     def test_singular_and_plural(self):
         self.assertIn("1 row flagged red", gui.callout(self.result(flagged=1)))
         self.assertIn("3 dates or times could not be read", gui.callout(self.result(unreadable=3)))
+
+
+class InstructionsTests(unittest.TestCase):
+    """Every "quoted" label in the How to use text must be a real string in the
+    window code, so the instructions never name a button that doesn't exist."""
+
+    @staticmethod
+    def window_strings():
+        tree = ast.parse(Path(gui.__file__).read_text(encoding="utf-8"))
+        skip = set()
+        for node in tree.body:
+            targets = node.targets if isinstance(node, ast.Assign) else [getattr(node, "target", None)]
+            if any(getattr(t, "id", "") == "INSTRUCTIONS" for t in targets):
+                skip = {id(n) for n in ast.walk(node)}
+        assert skip, "INSTRUCTIONS assignment not found"
+        return {
+            n.value for n in ast.walk(tree)
+            if isinstance(n, ast.Constant) and isinstance(n.value, str) and id(n) not in skip
+        }
+
+    @staticmethod
+    def instruction_texts():
+        for heading, items in gui.INSTRUCTIONS:
+            yield heading
+            for _marker, text, subitems in items:
+                yield text
+                yield from subitems
+
+    def test_quoted_labels_exist_in_the_window(self):
+        strings = self.window_strings()
+        quoted = [q.rstrip(".,:;") for text in self.instruction_texts() for q in re.findall(r'"([^"]+)"', text)]
+        self.assertTrue(quoted)
+        self.assertEqual([q for q in quoted if q not in strings], [])
 
 
 if __name__ == "__main__":

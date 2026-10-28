@@ -2,7 +2,7 @@
 
 The One45 schedule importer takes a fixed 19-column layout. `portfolio` is not one of them: the Wrangler reads it for routing and never writes it, because the importer picks the Portfolio at import time.
 
-The Wrangler writes these headers in this order, from `CANONICAL_HEADERS` in `create-master-schedule-workbook.py`. The header strings are exact, including the lowercase `email` and the trailing spaces on `Facilitator email ` and `Facilitator Role `.
+The Wrangler writes these headers in this order, from `CANONICAL_HEADERS` in `wrangler.py`. The header strings are exact, including the lowercase `email` and the trailing spaces on `Facilitator email ` and `Facilitator Role `.
 
 ## Columns
 

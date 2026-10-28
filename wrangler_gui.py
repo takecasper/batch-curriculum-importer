@@ -1,13 +1,12 @@
 #!/usr/bin/env python3
 """
 One45 Schedule Wrangler window: choose a Batch folder, make the Batch Import,
-open it. A front end for create-master-schedule-workbook.py; see GLOSSARY.md.
+open it. A front end for wrangler.py; see GLOSSARY.md.
 """
 
 from __future__ import annotations
 
 import contextlib
-import importlib.util
 import io
 import json
 import os
@@ -18,11 +17,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Callable, Dict, Optional
 
-HERE = Path(__file__).resolve().parent
-_spec = importlib.util.spec_from_file_location("wrangler", HERE / "create-master-schedule-workbook.py")
-wrangler = importlib.util.module_from_spec(_spec)
-sys.modules["wrangler"] = wrangler  # dataclasses resolve annotations via sys.modules
-_spec.loader.exec_module(wrangler)
+import wrangler
 
 APP_NAME = "One45 Schedule Wrangler"
 DOWNLOADS = Path.home() / "Downloads"

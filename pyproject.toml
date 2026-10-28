@@ -10,5 +10,10 @@ requires-python = ">=3.9"
 dependencies = ["openpyxl>=3.1,<4.0"]
 
 [tool.setuptools]
-py-modules = []
-script-files = ["create-master-schedule-workbook.py"]
+py-modules = ["wrangler", "wrangler_gui"]
+
+[tool.ruff.lint]
+select = ["F", "E9"]
+
+[project.scripts]
+one45-schedule-wrangler = "wrangler:main"

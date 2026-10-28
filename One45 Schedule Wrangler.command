@@ -17,4 +17,4 @@ if [[ ! -x "$VENV_PY" ]] || ! "$VENV_PY" -c 'import openpyxl, tkinter' 2>/dev/nu
   "$SCRIPT_DIR/setup-venv.sh"
 fi
 
-exec "$VENV_PY" "$SCRIPT_DIR/wrangler-gui.py"
+exec "$VENV_PY" "$SCRIPT_DIR/wrangler_gui.py"

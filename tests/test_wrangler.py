@@ -1,5 +1,4 @@
 import contextlib
-import importlib.util
 import io
 import sys
 import tempfile
@@ -9,11 +8,10 @@ from pathlib import Path
 
 from openpyxl import Workbook, load_workbook
 
-SCRIPT = Path(__file__).resolve().parent.parent / "create-master-schedule-workbook.py"
-spec = importlib.util.spec_from_file_location("wrangler", SCRIPT)
-wrangler = importlib.util.module_from_spec(spec)
-sys.modules["wrangler"] = wrangler  # dataclasses resolve annotations via sys.modules
-spec.loader.exec_module(wrangler)
+# The app modules sit in the repo root, one level up; the other test files
+# import this one first, so this makes them importable everywhere.
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+import wrangler  # noqa: E402
 
 HEADERS = [
     "portfolio",
