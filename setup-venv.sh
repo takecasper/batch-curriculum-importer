@@ -12,5 +12,14 @@ fi
 "$VENV_DIR/bin/python" -m pip install --upgrade pip
 "$VENV_DIR/bin/python" -m pip install -r "$SCRIPT_DIR/requirements.txt"
 
+# In a git checkout, run ./check.sh before every commit. Checked via .git so a
+# copy without git never calls git (which prompts for an install on macOS).
+# Never fatal: the launcher calls this script, and the app doesn't need ruff.
+if [[ -e "$SCRIPT_DIR/.git" ]]; then
+  "$VENV_DIR/bin/python" -m pip install -r "$SCRIPT_DIR/requirements-dev.txt" \
+    || echo "Could not install dev tools (ruff); ./check.sh will ask again."
+  git -C "$SCRIPT_DIR" config core.hooksPath .githooks || true
+fi
+
 echo "Virtual environment ready: $VENV_DIR"
 echo "Run the tool with: $SCRIPT_DIR/run.sh"

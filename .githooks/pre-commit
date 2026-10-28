@@ -1,0 +1,3 @@
+#!/usr/bin/env bash
+# Enabled by setup-venv.sh (git config core.hooksPath .githooks).
+exec "$(git rev-parse --show-toplevel)/check.sh"

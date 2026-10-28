@@ -1,0 +1,4 @@
+- Run `./check.sh` (ruff + all tests) before committing; the pre-commit hook runs it too.
+- Read GLOSSARY.md before naming anything; `tests/test_glossary.py` fails on its multi-word "Do Not Use" terms.
+- Window changes: `GUI_TESTS=1 ./check.sh` drives the real window; README "Test" covers screenshots.
+- Add user-visible changes to CHANGELOG.md under Unreleased.
