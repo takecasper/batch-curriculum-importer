@@ -26,9 +26,9 @@ Behavior:
   the Partner Workbooks and it. It is never imported.
 
 Example:
-  python3 /path/to/create-master-schedule-workbook.py
+  python3 /path/to/wrangler.py
 
-wrangler-gui.py drives the same steps (read_batch, portfolio_gap,
+wrangler_gui.py drives the same steps (read_batch, portfolio_gap,
 write_batch_import) from a window, asking for missing Portfolios.
 """
 

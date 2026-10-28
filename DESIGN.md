@@ -1,6 +1,6 @@
 # One45 Schedule Wrangler: Design Notes
 
-This document explains how `create-master-schedule-workbook.py` works and why key design decisions were made. Domain terms (Partner, Batch, Partner Workbook, Schedule Sheet, Mapping Sheet, Batch Import, Portfolio Tab, Course Tab, File Tab, Change Log Tab, Check Run, Combine Run, Flagged Cell) are defined in `GLOSSARY.md`. The output columns and what the One45 importer requires of each are in `IMPORT-FORMAT.md`. The window (`wrangler-gui.py`) is described under "Window" below.
+This document explains how `wrangler.py` works and why key design decisions were made. Domain terms (Partner, Batch, Partner Workbook, Schedule Sheet, Mapping Sheet, Batch Import, Portfolio Tab, Course Tab, File Tab, Change Log Tab, Check Run, Combine Run, Flagged Cell) are defined in `GLOSSARY.md`. The output columns and what the One45 importer requires of each are in `IMPORT-FORMAT.md`. The window (`wrangler_gui.py`) is described under "Window" below.
 
 ## Goals
 
@@ -96,10 +96,10 @@ The run type depends only on how many Partner Workbooks contributed rows: one is
 
 ## Window
 
-`wrangler-gui.py` (Tkinter) is a native GUI wrapper invoked via `One45 Schedule Wrangler.command`, which provisions `.venv` on initial run.
+`wrangler_gui.py` (Tkinter) is a native GUI wrapper invoked via `One45 Schedule Wrangler.command`, which provisions `.venv` on initial run.
 
 - **First open:** Displays instructional modal once per user (state persisted in `~/Library/Application Support/One45 Schedule Wrangler/` on macOS, `%APPDATA%` on Windows). The **How to use** button redisplays these instructions.
-- **State persistence:** Caches the last selected folder and output preference in application support, defaulting to `~/Downloads` and single-file mode.
+- **State persistence:** Caches the last selected folder and output preference in application support, defaulting to `~/Downloads` and one file with a tab per Portfolio.
 - **Collision management:** If target files or folders exist, prompts **Replace it / Keep the old one / Cancel**. Retaining existing data renames old files to `... (previous YYYY-MM-DD HHMM)`. Because the string `-batch-import` is retained, archived runs are safely excluded from future input scans. Replacing a folder is deferred until the Portfolio questions are answered, so cancelling or answering No keeps the old files.
 - **Execution callout:** Post-run alert highlighting flagged red cells, unparseable dates/times, multi-term Portfolio spans, or generated File Tabs.
 - **Direct launch:** Provides direct buttons to open the generated workbook or destination folder.

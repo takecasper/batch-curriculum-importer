@@ -3,7 +3,7 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 VENV_PY="$SCRIPT_DIR/.venv/bin/python"
-TOOL="$SCRIPT_DIR/create-master-schedule-workbook.py"
+TOOL="$SCRIPT_DIR/wrangler.py"
 
 if [[ ! -x "$VENV_PY" ]]; then
   echo "Missing virtual environment at $SCRIPT_DIR/.venv"
