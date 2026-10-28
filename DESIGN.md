@@ -1,6 +1,6 @@
 # One45 Schedule Wrangler: Design Notes
 
-This document explains how `create-master-schedule-workbook.py` works and why key design decisions were made. Domain terms (Partner, Batch, Partner Workbook, Schedule Sheet, Mapping Sheet, Batch Import, Portfolio Tab, Course Tab, Change Log Tab, Check Run, Combine Run, Flagged Cell) are defined in `GLOSSARY.md`. The window (`wrangler-gui.py`) is described under "Window" below.
+This document explains how `create-master-schedule-workbook.py` works and why key design decisions were made. Domain terms (Partner, Batch, Partner Workbook, Schedule Sheet, Mapping Sheet, Batch Import, Portfolio Tab, Course Tab, File Tab, Change Log Tab, Check Run, Combine Run, Flagged Cell) are defined in `GLOSSARY.md`. The output columns and what the One45 importer requires of each are in `IMPORT-FORMAT.md`. The window (`wrangler-gui.py`) is described under "Window" below.
 
 ## Goals
 
@@ -29,9 +29,9 @@ This document explains how `create-master-schedule-workbook.py` works and why ke
 1. Resolve the input directory: `--input-dir`, else `schedule-workbooks/` next to the script, else `~/Downloads`.
 2. Discover `.xlsx` files there. Exclude lock files (`~$...`), the output path, and prior outputs (`-batch-import`, plus the older `-master-schedule` and `_schedule-import` names).
 3. **Collect.** For each Partner Workbook and each sheet:
-   1. Skip Mapping Sheets (any `objective`/`objectives` cell in the scanned rows).
-   2. Materialize formulas to cached values (Step 0).
-   3. Detect the header row by fuzzy matching against the canonical headers.
+   1. Materialize formulas to cached values (Step 0).
+   2. Detect the header row by fuzzy matching against the canonical headers, looking through the first `--header-scan-rows` rows (default 30) so title rows above the header are fine.
+   3. Skip Mapping Sheets: the detected header row, or a title row above it, names `objective` or `objectives` (whole word, any case). This is a separate check, not part of fuzzy header scoring. Data rows are never checked, so a Session Name such as "Learning Objectives Review" does not skip a Schedule Sheet. A sheet with no detectable header is skipped either way; it is logged as a mapping sheet, rather than as having no matching headers, when one of its scanned rows names an objective.
    4. Skip sheets that map neither `portfolio` nor `Course Name`.
    5. Read rows, normalize times and dates, and mark rows whose End Time is not after Start Time.
 4. **Check Portfolios.** Once the whole Batch is read, find rows that can't be routed (see "Missing Portfolios"). The command line fills them from `--portfolio` or stops with a list; the window asks.
@@ -47,10 +47,14 @@ The tab layout depends on the whole Batch (whether *any* workbook has a Portfoli
 
 ## Run Types and Routing
 
-| Run type | When | Tabs |
-|---|---|---|
-| Check Run / Combine Run (Portfolio Tabs) | One / two or more workbooks contributed rows, and every row has a Portfolio | One tab per Portfolio. |
-| Check Run / Combine Run | No row has a Portfolio, and the Batch holds a single Course | One Course Tab named after it. |
+The run type depends only on how many Partner Workbooks contributed rows: one is a Check Run, two or more is a Combine Run. It names the run in the summary and does not change routing. Routing depends on the Portfolios:
+
+| Portfolios | Tabs | Summary Shows |
+| :--- | :--- | :--- |
+| Every row has one | One Portfolio Tab per Portfolio | `Check Run (Portfolio Tabs)` or `Combine Run (Portfolio Tabs)` |
+| None, the Batch holds a single Course, and no `--unassigned-file-tabs` | One Course Tab named after the Course | `Check Run` or `Combine Run` |
+| Some or none, with `--unassigned-file-tabs` | Portfolio Tabs, then one File Tab per workbook with blank Portfolios | `... (Portfolio Tabs and file tabs)` |
+| Any other gap | None; the run stops first (see "Missing Portfolios") | *Execution halts prior to output generation* |
 
 - "Has a Portfolio" means a non-blank value, not merely a mapped `portfolio` header; a header with only blank cells carries no information.
 - Portfolio names that differ only by case or whitespace (`Summer 2026, MED 4` vs ` summer 2026,  med 4 `) route to the same tab. The tab uses the first spelling seen.
@@ -68,114 +72,133 @@ The tab layout depends on the whole Batch (whether *any* workbook has a Portfoli
 
 ## Missing Portfolios
 
-| Situation | Command line | Window |
-|---|---|---|
-| No row has a Portfolio and the Batch holds several Courses | Stops and lists each workbook with its Courses, unless `--portfolio` or `--unassigned-file-tabs` is given | Asks "Are they all in the same Portfolio?" Yes: asks for the name. Give each its own tab: writes a File Tab per workbook. No: lists the workbooks to fix and writes nothing. |
-| Some rows have a Portfolio, others are blank | Stops and lists the workbooks with blank rows, unless `--portfolio` or `--unassigned-file-tabs` is given | Lists those workbooks, each with a dropdown of the Portfolios found (preselected when there is only one) that also takes a typed name. Give each its own tab: the Portfolio rows still go to Portfolio Tabs and each listed workbook's blank rows go to its own File Tab. Cancel writes nothing. |
+| Situation | Command Line | Window |
+| :--- | :--- | :--- |
+| No row has a Portfolio and the Batch holds several Courses | Stops and lists each workbook with its Courses, unless `--portfolio` or `--unassigned-file-tabs` is given | Asks: *"Are they all in the same Portfolio?"*<br>• **Yes:** Prompts for Portfolio name.<br>• **Give each its own tab:** Writes a File Tab per workbook.<br>• **No:** Lists the workbooks to fix and writes nothing. |
+| Some rows have a Portfolio, others are blank | Stops and lists the workbooks with blank rows, unless `--portfolio` or `--unassigned-file-tabs` is given | Lists those workbooks, each with a dropdown of detected Portfolios (preselected when there is only one) that also accepts typed text.<br>• **Give each its own tab:** Portfolio rows go to Portfolio Tabs; unassigned rows go to a File Tab per workbook.<br>• **Cancel:** Writes nothing. |
 
 - `--portfolio` fills every blank Portfolio with one name.
 - A filled-in Portfolio is logged once per workbook (`Portfolio filled in`), not per row.
-- `--unassigned-file-tabs` (the window's "Give each its own tab") routes blank-Portfolio rows to a File Tab named after their workbook, logged once per workbook (`No Portfolio: given its own tab`). File Tabs come after the Portfolio Tabs, and the window's callout counts them. Whoever imports a File Tab picks its Portfolio in the importer.
-- Use it to get everything written when a folder mixes files with and without Portfolios, for example a whole download folder.
+- `--unassigned-file-tabs` (the window's "Give each its own tab") routes blank-Portfolio rows to a File Tab named after their workbook, logged once per workbook (`No Portfolio: given its own tab`). File Tabs follow Portfolio Tabs, and the window callout reports their count. The Portfolio is assigned at import time in One45.
+- Use it to force output generation when a folder mixes files with and without Portfolios (e.g., an unsorted downloads folder).
 
 ### Why this decision
 
-- File Tabs are opt-in, so a Batch with missing Portfolios is never imported into the wrong place by accident; the default is still to ask or stop.
-- Earlier versions guessed: Course Tabs for Batches with no Portfolio, and a For Review tab for stragglers. Both produced tabs that could be imported into the wrong place. Partners send one file per Course with its Portfolio, so a missing Portfolio is a question for a person, asked before anything is written.
+- File Tabs are strictly opt-in, ensuring a Batch with missing Portfolios cannot be imported into the wrong target container by accident.
+- Prevents silent fallback failures: earlier heuristics that guessed Course Tabs or dumped stragglers into a generic "Review" tab created dangerous cross-import risks. Missing Portfolios require human confirmation before disk writes occur.
 
 ## One File per Portfolio
 
-- `--file-per-tab` (the window's "A separate file per Portfolio") writes each tab as its own workbook, named after the full Portfolio (not limited to 31 characters). Characters Windows or macOS reject in file names (`/ \ : * ? " < > |`) become `_`.
-- Each workbook has its own Change Log: entries for its own rows, entries for the Partner Workbooks and sheets that fed it, and skipped workbooks and sheets, which fed no file and so appear in every one.
-- The folder sits inside the Batch folder. The tool reads only files directly in the Batch folder, so the output is never read back as input.
-- The command line writes into an existing folder, replacing files with the same names. The window asks first (see below).
+- `--file-per-tab` (the window's "A separate file per Portfolio") writes each tab as its own workbook, named after the full Portfolio (not limited to 31 characters). Filesystem-reserved characters (`/ \ : * ? " < > |`) are sanitized to `_`.
+- Each workbook has its own Change Log: entries for its own rows, entries for the Partner Workbooks and sheets that fed it, and skipped workbooks and sheets (which fed no file and appear in every log).
+- Output directories reside inside the Batch folder. The tool reads only files directly in the Batch folder, never subfolders, so generated outputs are not read back as input on later runs.
+- The CLI writes into an existing folder and overwrites files with colliding names. The GUI prompts for confirmation before overwriting.
 
 ## Window
 
-`wrangler-gui.py` (tkinter, part of Python) is a front end, opened with `One45 Schedule Wrangler.command`, which builds `.venv` on first open.
+`wrangler-gui.py` (Tkinter) is a native GUI wrapper invoked via `One45 Schedule Wrangler.command`, which provisions `.venv` on initial run.
 
-- **First open:** shows how-to instructions once per person (marker in `~/Library/Application Support/One45 Schedule Wrangler/`, `%APPDATA%` on Windows). The **How to use** button shows them again.
-- **Remembers** the last folder and output choice in the same place, falling back to `~/Downloads` and one file.
-- **Existing output:** if the file or folder this run would write already exists, asks **Replace it / Keep the old one / Cancel**. Keeping renames it to `... (previous YYYY-MM-DD HHMM)`, which still contains `-batch-import`, so it's never read as a Partner Workbook (a plain rename like `old.xlsx` would be). Replacing a folder happens only once the Portfolio questions are answered, so cancelling keeps the old files.
-- **Callout:** after a run, a plain-language note when rows are flagged red, dates or times couldn't be read, or Portfolios span more than one term.
-- **Open:** opens the workbook, or the folder for one file per Portfolio.
-- Runs in a background thread so the window stays responsive. Mac now; the code avoids Mac-only paths so Windows needs only a launcher.
+- **First open:** Displays instructional modal once per user (state persisted in `~/Library/Application Support/One45 Schedule Wrangler/` on macOS, `%APPDATA%` on Windows). The **How to use** button redisplays these instructions.
+- **State persistence:** Caches the last selected folder and output preference in application support, defaulting to `~/Downloads` and single-file mode.
+- **Collision management:** If target files or folders exist, prompts **Replace it / Keep the old one / Cancel**. Retaining existing data renames old files to `... (previous YYYY-MM-DD HHMM)`. Because the string `-batch-import` is retained, archived runs are safely excluded from future input scans. Replacing a folder is deferred until the Portfolio questions are answered, so cancelling or answering No keeps the old files.
+- **Execution callout:** Post-run alert highlighting flagged red cells, unparseable dates/times, multi-term Portfolio spans, or generated File Tabs.
+- **Direct launch:** Provides direct buttons to open the generated workbook or destination folder.
+- **Thread isolation:** Processing executes in a background thread to prevent UI freezing during large file parsing.
+- **Platforms:** macOS today. The code avoids Mac-only paths, so Windows needs only a launcher.
 
 ## Date/Time Normalization
 
-Readable variants are fixed; anything else passes through unchanged and is listed in the summary under "Values left unchanged (could not be read)". Those values are not flagged.
+Parseable variants are normalized; unparseable strings pass through intact, appear under "Values left unchanged (could not be read)" in the summary, and are not flagged.
 
 ### Time (`Start Time`, `End Time`)
 
-- Accepts time/datetime cells, Excel day fractions, `9:00 AM`, `9:00AM`, `9am`, `9:00 a.m.`, `noon`, `13:30`, `13:30:00`, and military `0900`/`930` (text or whole numbers).
-- Writes real Excel time values with `hh:mm` display format (24-hour).
+- Accepts native time/datetime cells, Excel day fractions, `9:00 AM`, `9:00AM`, `9am`, `9:00 a.m.`, `noon`, `13:30`, `13:30:00`, and military integers/strings (`0900`, `930`).
+- Writes native Excel time serials formatted explicitly as `hh:mm` (24-hour time).
 
 ### Date (`Section Date`)
 
-- Accepts date/datetime cells, Excel serial day numbers, `yyyymmdd` (text or number), ISO and US numeric formats, and month-name formats such as `May 5, 2026` and `5-May-2026`.
-- Writes real date values with `yyyymmdd` display format.
+- Accepts native date/datetime cells, Excel day integers, numeric `yyyymmdd`, ISO formats, US slash/dash formats, and string dates (`May 5, 2026`, `5-May-2026`).
+- Writes native Excel date serials formatted explicitly as `yyyymmdd`.
+
+### Formative/Summative (`Session Formative/Summative`)
+
+- `formative` or `summative` in any casing, with any surrounding spaces, becomes `Formative` or `Summative`, the only spellings the importer accepts. Each fix is logged as `Formative/Summative fixed`.
+- Any other value passes through unchanged and is not flagged.
 
 ### Why this decision
 
-- Import failures are frequently caused by text-like date/time fields.
-- Fixing what can be read saves manual cleanup; guessing at what can't be read would hide problems.
+- Text-formatted date/time values are a frequent cause of One45 import failures.
+- Normalizing valid patterns eliminates manual spreadsheet cleanup while avoiding algorithmic guessing on ambiguous inputs.
 
 ## Flagged Cells
 
-- Only one condition is flagged red: an End Time that is not after its Start Time. Both cells are flagged, and the row is counted in the summary.
-- These need a person's judgment: the right time has to be inferred or confirmed with the Partner.
-- Semicolons are not flagged. They only matter for objective/mapping imports, which this tool does not handle.
+- **Trigger:** Evaluated strictly when `End Time <= Start Time` within the same record.
+- **Formatting:** Both the `Start Time` and `End Time` cells receive a red fill.
+- **Resolution:** These records require human verification or Partner confirmation. They are logged in the summary and Change Log.
+- Semicolons are not flagged (irrelevant to schedule imports; only restricted in mapping imports).
 
 ## Change Log Tab
 
-Every Batch Import workbook ends with a **Change Log** tab: one row per change, with `Source File | Source Sheet | Source Row | Tab | Tab Row | Column | Change | Original | New`. It is never imported.
+Every Batch Import workbook terminates with a **Change Log** tab documenting all automated transformations:
+`Source File | Source Sheet | Source Row | Tab | Tab Row | Column | Change | Original | New`
 
-| Level | Changes recorded |
-|---|---|
-| Workbook / sheet | Workbook skipped (could not open); sheet skipped (mapping sheet, no matching headers, no Portfolio or Course Name column, could not read values); formulas replaced with computed values or left as-is (count per sheet) |
-| Column | Portfolio column removed; header renamed to the import header; column dropped (no matching import header); column added (blank) |
-| Workbook | Portfolio filled in (by `--portfolio` or the window) |
-| Row / cell | Time fixed; date fixed; could not read (left unchanged); flagged End Time not after Start Time; row skipped (hidden in source) |
+It is excluded from One45 import operations.
 
-- A time or date counts as fixed only when the source was text or a number. Real date/time cells only change type (`datetime` to `date`) and are not logged, so a clean file logs only its column changes.
-- Row entries carry the tab and row they landed on, so a person can go straight from the log to the cell.
-- Formulas are logged as a count per sheet, not per cell.
+| Scope | Recorded Events |
+| :--- | :--- |
+| **Workbook / Sheet** | Workbook unreadable/corrupt; sheet skipped (mapping sheet header, header threshold missed, missing Portfolio/Course Name, unreadable); formula-to-value materialization counts per sheet. |
+| **Column** | `portfolio` column deleted; header renamed to canonical import syntax; unmapped column dropped; missing canonical column added (empty). |
+| **Workbook Resolution** | Portfolio populated programmatically via CLI `--portfolio` or GUI modal. |
+| **Row / Cell** | Time normalized; date normalized; Formative/Summative casing fixed; unparseable value passed through; flagged time interval (`End Time <= Start Time`); hidden source row skipped. |
+
+- Time/date transformations are logged only when the input was text or numeric; native datetime-to-date type conversions are not logged to minimize noise.
+- `Source Row` and `Tab Row` reflect 1-based Excel row indices. `Tab Row` counts the output tab's header as row 1, so its data starts at row 2. `Source Row` is the row in the Partner's sheet, which can be lower when title rows sit above the header.
+- Formulas are tracked as aggregate replacement counts per sheet, not per individual cell.
 
 ### Why this decision
 
-- The Batch Import replaces the Partner's values silently; the log lets whoever imports it, or the Partner, see and check each change without diffing the files.
+- Programmatic transformations occur silently; the log provides a transparent audit trail for support staff and Partners without requiring manual spreadsheet diffs.
 
 ## Run Summary
 
-The summary reports the run type, every tab (`title <- kind: full name (rows)`), invalid time ranges, hidden rows skipped, unreadable time/date values (first 20), the Change Log entry count, and a warning when Portfolio Tabs name more than one term (e.g. `Summer 2026` and `Spring 2026`, matched on season + year). The term warning never blocks the run.
+The terminal and GUI summary reports:
+- Run type classification
+- Output tab roster (`title <- kind: full name (rows)`)
+- Count of invalid time intervals (flagged red)
+- Count of skipped hidden rows
+- Unparseable time/date values (first 20 samples)
+- Change Log entry total
+- Multi-term validation warning (triggers if Portfolios span multiple distinct academic terms, matched on season + year; non-blocking)
 
 ## Safety Behaviors
 
-- Writes nothing while any row is missing a Portfolio (except a single-Course Batch).
-- Skips unreadable/corrupt workbooks with warnings.
-- Skips Excel lock files (`~$`), the output path, and prior outputs.
-- Fails if no `.xlsx` files remain after filtering, or if no rows are collected.
+- Halts execution and writes zero bytes if any row lacks a Portfolio (excepting single-Course Batches), unless `--portfolio` or `--unassigned-file-tabs` is given.
+- Automatically skips unreadable or corrupt `.xlsx` workbooks with non-fatal warnings.
+- Ignores Excel lock files (`~$*`), targeted output files, and prior outputs matching `-batch-import`, `-master-schedule`, or `_schedule-import`.
+- Fails cleanly if no `.xlsx` files remain post-filter or if zero valid schedule rows are collected.
 
 ## Key Tunables
 
-- `--input-dir`, `--output`: where to read and write.
-- `--file-per-tab`: one workbook per Portfolio in a folder.
-- `--portfolio`: Portfolio for every blank-Portfolio row.
-- `--tab-contains`: tab-name substring tried first (all sheets remain candidates).
-- `--fuzzy-threshold`: match strictness (`0..1`).
-- `--header-scan-rows`: how far down to search for the header row.
-- `--min-header-matches`: minimum confidence gate for header row selection.
-- `--skip-formula-materialization`, `--skip-hidden-rows`.
+- `--input-dir`, `--output`: Input source and output target paths.
+- `--file-per-tab`: Output one standalone workbook per Portfolio within a directory.
+- `--portfolio`: Explicit string used to populate all blank Portfolio cells.
+- `--unassigned-file-tabs`: Directs unassigned rows to File Tabs named after source workbooks.
+- `--tab-contains`: Prioritizes sheets containing this substring during candidate evaluation.
+- `--fuzzy-threshold`: Minimum confidence threshold (`0..1`) for fuzzy header matching.
+- `--header-scan-rows`: Row depth limit when scanning for headers (default: 30).
+- `--min-header-matches`: Minimum number of recognized headers required to qualify a sheet.
+- `--skip-formula-materialization`: Disables cached formula conversion, leaving raw formulas intact.
+- `--skip-hidden-rows`: Excludes rows marked hidden in the source Excel file.
 
 ## Known Limitations
 
-- Multi-row/merged complex header structures can still be ambiguous.
-- Very unusual header text can map poorly unless the threshold/aliases are adjusted.
-- Portfolio name variants beyond case/whitespace (`Yr 1` vs `Year 1`) become separate tabs.
-- The window needs a Python with a working Tk. The python.org installer includes one; the Command Line Tools `python3` may not.
-- Source cell formatting is not preserved (by design; output is normalized import data and the source file is preserved).
-- Mapping Sheets (objective/mapping uploads) are out of scope.
+- **Merged Headers:** Complex multi-row or merged header layouts can degrade fuzzy detection accuracy.
+- **Unusual Header Aliases:** Highly divergent header naming may fail to resolve unless aliases or `--fuzzy-threshold` are adjusted.
+- **Lexical Portfolio Drift:** Semantic name variations beyond whitespace/casing (`Yr 1` vs `Year 1`) produce separate tabs.
+- **Environment:** GUI requires a Python installation with working Tk bindings (included with python.org binaries; often omitted in Command Line Tools / Homebrew minimalist builds).
+- **Style Stripping:** Original fonts, cell fills, and borders are intentionally omitted to generate clean, unstyled import matrices.
+- **Mapping Sheet Check:** A Schedule Sheet whose header row has a column such as "Session Objectives" is skipped as `Sheet skipped (mapping sheet)`. Rename or remove that column and run again.
 
 ## Why This Is Not a General ETL Framework
 
-This script is intentionally task-focused for repeatable schedule-import prep. The goal is reliability and operator simplicity, not maximum configurability.
+This script is built specifically to address One45 schedule import constraints. It prioritizes strict validation, safe defaults, and zero-configuration execution for frontline support operations over general-purpose ETL flexibility.
