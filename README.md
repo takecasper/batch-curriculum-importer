@@ -37,3 +37,10 @@ See `create-master-schedule-workbook.py --help` for all flags.
 ```bash
 .venv/bin/python -m unittest discover -s tests
 ```
+
+The window tests (`tests/test_gui_window.py`) open the real window and click through it, so they are skipped unless you ask for them. `GUI_SHOTS` saves a screenshot of each dialog; on macOS the terminal needs Screen Recording permission (System Settings > Privacy & Security) or the images come out blank.
+
+```bash
+GUI_TESTS=1 .venv/bin/python -m unittest discover -s tests
+GUI_TESTS=1 GUI_SHOTS=/tmp/wrangler-shots .venv/bin/python -m unittest discover -s tests -p test_gui_window.py
+```
