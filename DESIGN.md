@@ -96,7 +96,7 @@ The run type depends only on how many Partner Workbooks contributed rows: one is
 
 ## Window
 
-`wrangler_gui.py` (Tkinter) is a native GUI wrapper invoked via `One45 Schedule Wrangler.command`, which provisions `.venv` on initial run.
+`wrangler_gui.py` (Tkinter) is a native GUI wrapper invoked via `One45 Schedule Wrangler.app`, a bundle folder tracked in git whose executable is a shell script. Finder gives it a bare PATH, so it looks for python.org's Python under `/Library/Frameworks/Python.framework` (newest 3.9+ with Tkinter; never Apple's `/usr/bin/python3` stub). When none is found it offers to download a pinned installer, verifies its SHA-256, and opens it with Apple's Installer. It provisions `.venv` on initial run, logging to `~/Library/Logs/One45 Schedule Wrangler/`. There is no Terminal, so messages are `osascript` dialogs. The icon is built from `assets/icon.svg` by `assets/make-icon.sh`.
 
 - **First open:** Displays instructional modal once per user (state persisted in `~/Library/Application Support/One45 Schedule Wrangler/` on macOS, `%APPDATA%` on Windows). The **How to use** button redisplays these instructions.
 - **State persistence:** Caches the last selected folder and output preference in application support, defaulting to `~/Downloads` and one file with a tab per Portfolio.

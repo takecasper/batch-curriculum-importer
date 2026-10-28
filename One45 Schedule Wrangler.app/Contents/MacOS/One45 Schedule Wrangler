@@ -1,0 +1,113 @@
+#!/bin/bash
+# One45 Schedule Wrangler.app: Finder runs this on double-click.
+# No Terminal is attached, so every message is a dialog or a notification.
+# Finder gives apps a bare PATH, so Python is found by its python.org path.
+# tests/test_launcher.py drives this with WRANGLER_ROOT and WRANGLER_FRAMEWORKS
+# set, and stand-ins for osascript, curl, shasum and open on PATH.
+set -euo pipefail
+
+APP_NAME="One45 Schedule Wrangler"
+
+# To offer a newer Python: change the version, then the hash to
+# `shasum -a 256` of the .pkg downloaded from that URL.
+PYTHON_VERSION="3.13.17"
+PYTHON_PKG_URL="https://www.python.org/ftp/python/$PYTHON_VERSION/python-$PYTHON_VERSION-macos11.pkg"
+PYTHON_PKG_SHA256="3053592af66128269efab37fe7851a4894920b27c442aeec99ce4d34d17c07e3"
+
+ROOT="${WRANGLER_ROOT:-$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)}"
+FRAMEWORKS="${WRANGLER_FRAMEWORKS:-/Library/Frameworks/Python.framework/Versions}"
+VENV_PY="$ROOT/.venv/bin/python"
+LOG_DIR="$HOME/Library/Logs/$APP_NAME"
+SETUP_LOG="$LOG_DIR/setup.log"
+RUN_LOG="$LOG_DIR/window.log"
+LOCK="$ROOT/.venv-setup.lock"
+
+say() {  # say "text" [icon]; a dismissed dialog must not stop the script
+  osascript -e "display dialog \"$1\" buttons {\"OK\"} default button \"OK\" with title \"$APP_NAME\" with icon ${2:-note}" >/dev/null 2>&1 || true
+}
+
+ask() {  # ask "text" "Button": true when that button was pressed
+  local answer
+  answer="$(osascript -e "display dialog \"$1\" buttons {\"Cancel\", \"$2\"} default button \"$2\" with title \"$APP_NAME\" with icon note" 2>/dev/null)" || return 1
+  [[ "$answer" == *"$2"* ]]
+}
+
+notify() {
+  osascript -e "display notification \"$1\" with title \"$APP_NAME\"" >/dev/null 2>&1 || true
+}
+
+# Newest python.org Python that is 3.9+ and has Tkinter. Apple's /usr/bin/python3
+# is never used: without the developer tools it only shows an install prompt.
+find_python() {
+  local version py
+  [[ -d "$FRAMEWORKS" ]] || return 1
+  while read -r version; do
+    py="$FRAMEWORKS/$version/bin/python3"
+    if [[ -x "$py" ]] && "$py" -c 'import sys, tkinter; sys.exit(0 if sys.version_info >= (3, 9) else 1)' >/dev/null 2>&1; then
+      echo "$py"
+      return 0
+    fi
+  done < <(ls -1 "$FRAMEWORKS" | grep -E '^3\.[0-9]+$' | sort -V -r)
+  return 1
+}
+
+install_python() {
+  ask "Python from python.org isn't installed on this Mac. (Other Pythons can't open the window.) Download Python $PYTHON_VERSION, about 70 MB, and run its installer?" "Download" || exit 1
+  local dir="${TMPDIR:-/tmp}/one45-schedule-wrangler"
+  local pkg="$dir/python-$PYTHON_VERSION-macos11.pkg"
+  mkdir -p "$dir"
+  notify "Downloading Python $PYTHON_VERSION..."
+  if ! curl -fsSL -o "$pkg" "$PYTHON_PKG_URL"; then
+    say "The download failed. Check the internet connection and try again, or install Python from python.org/downloads yourself." caution
+    exit 1
+  fi
+  if [[ "$(shasum -a 256 "$pkg" | cut -d' ' -f1)" != "$PYTHON_PKG_SHA256" ]]; then
+    rm -f "$pkg"
+    say "The downloaded Python installer did not match its expected checksum, so it was not opened. Install Python from python.org/downloads yourself." caution
+    exit 1
+  fi
+  say "The Python installer will open now. When it finishes, open $APP_NAME again."
+  open "$pkg"
+  exit 0
+}
+
+# One setup at a time: a second double-click during the first open must not
+# start another pip install into the same venv. A lock left by a dead process
+# (power loss, force quit) is taken over.
+take_setup_lock() {
+  local pid
+  pid="$(cat "$LOCK/pid" 2>/dev/null || true)"
+  # A lock without a readable pid is stale too; `kill -0 0` would hit our own group.
+  if [[ -d "$LOCK" && "$pid" =~ ^[1-9][0-9]*$ ]] && kill -0 "$pid" 2>/dev/null; then
+    say "$APP_NAME is still setting up from an earlier open. Give it a minute, then open it again."
+    exit 1
+  fi
+  rm -rf "$LOCK"
+  mkdir "$LOCK"
+  echo $$ > "$LOCK/pid"
+  trap 'rm -rf "$LOCK"' EXIT
+}
+
+if [[ ! -f "$ROOT/wrangler_gui.py" || ! -f "$ROOT/setup-venv.sh" ]]; then
+  say "$APP_NAME needs the rest of its folder. Put the app back in the folder you unzipped, next to README.md, and open it from there." caution
+  exit 1
+fi
+
+mkdir -p "$LOG_DIR"
+
+# First open, or after a Python upgrade broke the venv: build it.
+if [[ ! -x "$VENV_PY" ]] || ! "$VENV_PY" -c 'import openpyxl, tkinter' >/dev/null 2>&1; then
+  PY="$(find_python)" || install_python
+  take_setup_lock
+  notify "Setting up $APP_NAME (first open only)..."
+  if ! PYTHON="$PY" "$ROOT/setup-venv.sh" >"$SETUP_LOG" 2>&1; then
+    say "Setup did not finish. Details are in $SETUP_LOG" caution
+    exit 1
+  fi
+fi
+
+# Not exec: a crash at startup would otherwise vanish without a trace.
+if ! "$VENV_PY" "$ROOT/wrangler_gui.py" 2>"$RUN_LOG"; then
+  say "$APP_NAME closed with an error. Details are in $RUN_LOG" caution
+  exit 1
+fi

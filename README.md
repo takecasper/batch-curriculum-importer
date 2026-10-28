@@ -22,18 +22,27 @@ Terminology is defined in [GLOSSARY.md](GLOSSARY.md). Architectural decisions an
 
 ## Requirements & Environment
 
-- macOS. The code avoids Mac-only paths, but Windows has no launcher yet.
-- Python 3.9+ with Tkinter support (standard python.org distribution).
+- macOS 11 or later. The code avoids Mac-only paths, but Windows has no launcher yet.
+- Python 3.9+ from [python.org](https://www.python.org/downloads/) with Tkinter. The app offers to download it when it is missing.
 - Shell scripts handle virtual environment provisioning automatically.
 
 Execution is strictly isolated within a local `.venv` managed by `setup-venv.sh`.
 
 ---
 
+## Getting It
+
+1. On the [latest release](https://github.com/takecasper/batch-curriculum-importer/releases/latest), download **Source code (zip)** and unzip it. Keep the whole folder together: the app looks for its files next to it.
+2. Double-click `One45 Schedule Wrangler.app`. The first time, macOS says it could not verify the app. Click **Done**, open **System Settings > Privacy & Security**, scroll to **Security**, click **Open Anyway**, then open the app again. This happens once per Mac. (Before macOS 15 the message is different: click **Cancel**, then right-click the app and choose **Open**.)
+3. If Python is not installed, the app offers to download it from python.org. Apple's installer opens; when it finishes, open the app again.
+4. The first open builds the app's private environment, which takes about a minute. A notification shows while it runs. If it fails, a dialog names the log file in `~/Library/Logs/One45 Schedule Wrangler/`.
+
+---
+
 ## Quick Start (GUI)
 
 1. Place the Partner Workbooks into a single folder. Do not use subfolders.
-2. Double-click `One45 Schedule Wrangler.command` (macOS). The local environment will initialize automatically on first run. If macOS blocks the file the first time, right-click it and choose **Open**.
+2. Double-click `One45 Schedule Wrangler.app`.
 3. Click **Choose folder...** and select the input folder containing the source files.
 4. Choose the output format:
    - **One file, a tab per Portfolio:** Writes `<folder>-batch-import.xlsx` in the source folder.

@@ -1,0 +1,31 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
+  <!-- App icon: a schedule grid on a blue tile. Rebuild AppIcon.icns with assets/make-icon.sh. -->
+  <defs>
+    <linearGradient id="tile" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#2F6FD6"/>
+      <stop offset="1" stop-color="#173F8A"/>
+    </linearGradient>
+  </defs>
+  <rect x="64" y="64" width="896" height="896" rx="200" fill="url(#tile)"/>
+  <!-- sheet -->
+  <rect x="192" y="232" width="640" height="560" rx="40" fill="#FFFFFF"/>
+  <!-- header row -->
+  <rect x="192" y="232" width="640" height="120" rx="40" fill="#9CC0F5"/>
+  <rect x="192" y="312" width="640" height="40" fill="#9CC0F5"/>
+  <!-- row lines -->
+  <g stroke="#C9DAF5" stroke-width="12">
+    <line x1="192" y1="462" x2="832" y2="462"/>
+    <line x1="192" y1="572" x2="832" y2="572"/>
+    <line x1="192" y1="682" x2="832" y2="682"/>
+  </g>
+  <!-- column lines -->
+  <g stroke="#C9DAF5" stroke-width="12">
+    <line x1="405" y1="352" x2="405" y2="792"/>
+    <line x1="619" y1="352" x2="619" y2="792"/>
+  </g>
+  <!-- filled sessions -->
+  <rect x="222" y="382" width="153" height="50" rx="14" fill="#2F6FD6"/>
+  <rect x="435" y="492" width="154" height="50" rx="14" fill="#2F6FD6"/>
+  <rect x="649" y="602" width="153" height="50" rx="14" fill="#2F6FD6"/>
+  <rect x="222" y="712" width="153" height="50" rx="14" fill="#2F6FD6"/>
+</svg>
