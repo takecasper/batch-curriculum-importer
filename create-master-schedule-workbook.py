@@ -71,6 +71,7 @@ CHANGE_LOG_HEADERS = [
 ]
 TERM_PATTERN = re.compile(r"\b(spring|summer|fall|autumn|winter)\s+(\d{4})\b", re.IGNORECASE)
 MAX_UNREADABLE_LISTED = 20
+ASSESSMENT_MODE_HEADER = "Session Formative/Summative"
 CANONICAL_HEADERS = [
     "portfolio",
     "Course Name",
@@ -78,7 +79,7 @@ CANONICAL_HEADERS = [
     "Subcourse Name",
     "Subcourse Number",
     "Session Type",
-    "Session Formative/Summative",
+    ASSESSMENT_MODE_HEADER,
     "Session Name",
     "Section Name",
     "Section Date",
@@ -441,6 +442,14 @@ def normalize_date_value(value: object) -> object:
     return value
 
 
+def normalize_assessment_mode(value: object) -> object:
+    """Formative/Summative in any case or padding becomes the importer's title
+    case; anything else passes through."""
+    if isinstance(value, str) and value.strip().casefold() in ("formative", "summative"):
+        return value.strip().title()
+    return value
+
+
 def header_similarity(
     src_norm: str, canon_norm: str, alias_lookup: Dict[str, str]
 ) -> float:
@@ -512,21 +521,18 @@ def match_headers(
     return mapping, scores, unmatched_source, missing_canonical
 
 
-def sheet_has_objective_header(worksheet, scan_rows: int) -> bool:
-    """Return True if any cell in the scanned rows contains the word 'objective'.
+def names_objective(cells: List[object]) -> bool:
+    """True if any cell holds the word 'objective' or 'objectives', the mark of a
+    Mapping Sheet's header ("Session Objectives" and the like)."""
+    return any(re.search(r"\bobjectives?\b", normalize_header(cell)) for cell in cells)
 
-    Sheets with an objective column are curriculum/course-design sheets, not
-    schedule sheets, and should be skipped entirely.
-    """
-    max_scan = min(scan_rows, worksheet.max_row)
-    for row_idx in range(1, max_scan + 1):
-        for col_idx in range(1, worksheet.max_column + 1):
-            cell_norm = normalize_header(worksheet.cell(row_idx, col_idx).value)
-            # Match singular and plural ("objective" / "objectives") so pivot and
-            # curriculum sheets with "Session Objectives"-style headers are caught.
-            if re.search(r"\bobjectives?\b", cell_norm):
-                return True
-    return False
+
+def sheet_has_objective_header(worksheet, scan_rows: int) -> bool:
+    """True if any of the first scan_rows rows names an objective."""
+    return any(
+        names_objective([cell.value for cell in cells])
+        for cells in worksheet.iter_rows(max_row=min(scan_rows, worksheet.max_row))
+    )
 
 
 def detect_header_row(
@@ -653,6 +659,7 @@ def collect_rows(
     rows: List[CollectedRow] = []
     invalid_time_rows = 0
     skipped_hidden = 0
+    mode_idx = canonical_headers.index(ASSESSMENT_MODE_HEADER)
 
     for row_idx in range(header_row_idx + 1, source_sheet.max_row + 1):
         if skip_hidden_rows and source_sheet.row_dimensions[row_idx].hidden:
@@ -682,6 +689,7 @@ def collect_rows(
             normalized[canonical_idx] = normalize_time_value(row_values[canonical_idx])
         for canonical_idx in date_header_indices:
             normalized[canonical_idx] = normalize_date_value(row_values[canonical_idx])
+        normalized[mode_idx] = normalize_assessment_mode(row_values[mode_idx])
 
         location = f"{workbook_name} :: {source_sheet.title} row {row_idx}"
         changes: List[ChangeLogEntry] = []
@@ -707,6 +715,8 @@ def collect_rows(
             elif not isinstance(original, (time, date)):
                 kind = "Time" if canonical_idx in time_header_indices else "Date"
                 note(header, f"{kind} fixed", original, value)
+        if normalized[mode_idx] != row_values[mode_idx]:
+            note(ASSESSMENT_MODE_HEADER, "Formative/Summative fixed", row_values[mode_idx], normalized[mode_idx])
 
         bad_time = False
         if start_time_idx is not None and end_time_idx is not None:
@@ -1165,17 +1175,6 @@ def read_batch(input_dir: Path, output_path: Path, args: argparse.Namespace) -> 
                 log_sheet("Sheet skipped (could not read values)")
                 continue
 
-            if sheet_has_objective_header(
-                source_sheet, scan_rows=args.header_scan_rows
-            ):
-                batch.skipped_for_objective += 1
-                print(
-                    f"Skipped sheet (objective header detected): "
-                    f"{workbook_path.name} :: {source_sheet.title}"
-                )
-                log_sheet("Sheet skipped (mapping sheet)")
-                continue
-
             converted_formulas = unresolved_formulas = 0
             if not args.skip_formula_materialization:
                 converted_formulas, unresolved_formulas = materialize_formula_cells(
@@ -1197,6 +1196,18 @@ def read_batch(input_dir: Path, output_path: Path, args: argparse.Namespace) -> 
                 scan_rows=args.header_scan_rows,
                 min_header_matches=args.min_header_matches,
             )
+            # The header and any title rows above it mark a Mapping Sheet; data rows
+            # don't, so a Session Name such as "Objectives Review" never drops a
+            # Schedule Sheet. With no header the sheet is skipped either way.
+            scan_to = header_info[0] if header_info else args.header_scan_rows
+            if sheet_has_objective_header(source_sheet, scan_to):
+                batch.skipped_for_objective += 1
+                print(
+                    f"Skipped sheet (objective header detected): "
+                    f"{workbook_path.name} :: {source_sheet.title}"
+                )
+                log_sheet("Sheet skipped (mapping sheet)")
+                continue
             if not header_info:
                 batch.skipped_for_headers += 1
                 log_sheet("Sheet skipped (no matching headers)")

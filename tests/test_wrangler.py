@@ -289,6 +289,63 @@ class CellCheckTests(WranglerTestCase):
         self.assertIn("TBD", self.log)
 
 
+class MappingPreFilterTests(WranglerTestCase):
+    def test_objective_in_a_session_name_keeps_the_schedule_sheet(self):
+        sessions = ["Learning Objectives Review", "Lecture 2"]
+        write_partner_workbook(self.batch, "a.xlsx", [row("P", "C", session=s) for s in sessions])
+        out = self.run_wrangler()
+        self.assertEqual(self.column(out["P"], "Session Name"), sessions)
+        entries = self.log_entries(out)
+        self.assertFalse(self.find(entries, "Sheet skipped (mapping sheet)", **{"Source Sheet": "Schedule Upload"}))
+
+    def test_mapping_sheet_with_extra_rows_above_its_header_is_still_skipped(self):
+        write_partner_workbook(self.batch, "a.xlsx", [row("P", "C")])
+        wb = Workbook()
+        sheet = wb.active
+        sheet.title = "Objectives Map"
+        for title in (["MD468 curriculum map"], [None], ["Draft"], ["Owner: Dr. Lee"], [None], ["v3"]):
+            sheet.append(title)
+        sheet.append(HEADERS + ["Objectives"])
+        sheet.append(row("P", "C", session="Mapped Lecture") + ["Describe things"])
+        wb.save(self.batch / "b.xlsx")
+        out = self.run_wrangler()
+        self.assertNotIn("Mapped Lecture", self.column(out["P"], "Session Name"))
+        entries = self.log_entries(out)
+        self.assertTrue(self.find(entries, "Sheet skipped (mapping sheet)", **{"Source Sheet": "Objectives Map"}))
+
+    def test_objective_in_a_title_row_above_the_header_skips_the_sheet(self):
+        write_partner_workbook(self.batch, "a.xlsx", [row("P", "C")])
+        wb = Workbook()
+        sheet = wb.active
+        sheet.title = "Map"
+        sheet.append(["MD468 Learning Objectives Map"])
+        sheet.append(HEADERS)
+        sheet.append(row("P", "C", session="Mapped Lecture"))
+        wb.save(self.batch / "b.xlsx")
+        out = self.run_wrangler()
+        self.assertNotIn("Mapped Lecture", self.column(out["P"], "Session Name"))
+        self.assertTrue(self.find(self.log_entries(out), "Sheet skipped (mapping sheet)", **{"Source Sheet": "Map"}))
+
+
+class AssessmentModeTests(WranglerTestCase):
+    def test_formative_summative_casing_is_fixed_and_logged(self):
+        modes = ["summative", " FORMATIVE ", "Formative", "Both"]
+        write_partner_workbook(
+            self.batch,
+            "a.xlsx",
+            [row("P", "C", session=f"Lecture {n}") + [m] for n, m in enumerate(modes)],
+            HEADERS + ["Session Formative/Summative"],
+        )
+        out = self.run_wrangler()
+        self.assertEqual(
+            self.column(out["P"], "Session Formative/Summative"), ["Summative", "Formative", "Formative", "Both"]
+        )
+        fixed = self.find(self.log_entries(out), "Formative/Summative fixed")
+        self.assertEqual([(e["Original"], e["New"], e["Tab Row"]) for e in fixed], [
+            ("summative", "Summative", 2), (" FORMATIVE ", "Formative", 3),
+        ])
+
+
 class ChangeLogTests(WranglerTestCase):
 
     def test_change_log_is_the_last_tab_and_records_column_changes(self):
