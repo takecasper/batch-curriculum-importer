@@ -1,0 +1,23 @@
+# macOS
+.DS_Store
+
+# Python
+.venv/
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+
+# Editors / tooling
+.ruff_cache/
+.claude/
+
+# PyInstaller build artifacts
+build/
+dist/
+*.spec
+
+# Local test scratch
+schedule-workbooks/
+schedule-master-package/
+/tmp/
