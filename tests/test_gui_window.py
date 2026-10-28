@@ -76,7 +76,7 @@ class WindowTestCase(unittest.TestCase):
         self.batch.mkdir(parents=True)
         self.shots = os.environ.get("GUI_SHOTS")
 
-    def open_window(self, file_per_tab=False, seen_instructions=True):
+    def save_settings(self, file_per_tab=False, seen_instructions=True):
         gui.save_settings(gui.support_dir() / "settings.json", gui.Settings(self.batch, file_per_tab))
         if seen_instructions:
             (gui.support_dir() / "instructions-seen").touch()
@@ -102,6 +102,8 @@ class WindowTestCase(unittest.TestCase):
                 root().destroy()
 
         def tick():
+            if not root():  # the window closed under us; play() reports what is left
+                return
             if state["next"] == len(steps):
                 return stop()
             wait_for, action = steps[state["next"]]
@@ -135,9 +137,13 @@ class WindowTestCase(unittest.TestCase):
             try:
                 gui.main()
             except tk.TclError as error:
+                if "display" not in str(error):
+                    raise
                 self.skipTest(f"no display: {error}")
         if state["error"]:
             self.fail(state["error"])
+        if state["next"] < len(steps):
+            self.fail(f"window closed before step {state['next'] + 1} of {len(steps)}")
 
 
 def showing(title):
@@ -176,12 +182,12 @@ class WindowTests(WindowTestCase):
     def test_first_open_shows_instructions_then_fills_a_missing_portfolio_and_keeps_the_old_import(self):
         write_partner_workbook(self.batch, "md468.xlsx", [row("Summer 2026, MED 4", "MD468 Pharm", start=time(11), end=time(10))])
         write_partner_workbook(self.batch, "md300.xlsx", [row(None, "MD300 Spanish")])
-        self.open_window(seen_instructions=False)
+        self.save_settings(seen_instructions=False)
         seen = {}
 
         def note_callout():
             seen["callout"] = next(
-                w.cget("text") for w in widgets(root()) if isinstance(w, tk.Label) and w.winfo_manager()
+                w.cget("text") for w in widgets(root()) if w.winfo_name() == "callout" and w.winfo_manager()
             )
             seen["first"] = outputs(self.batch)
 
@@ -206,7 +212,7 @@ class WindowTests(WindowTestCase):
         headers = HEADERS[1:]
         write_partner_workbook(self.batch, "md468.xlsx", [row(None, "MD468 Pharm")[1:], row(None, "MD469 Anat")[1:]], headers)
         write_partner_workbook(self.batch, "md300.xlsx", [row(None, "MD300 Spanish")[1:], row(None, "MD301 Ethics")[1:]], headers)
-        self.open_window(file_per_tab=True)
+        self.save_settings(file_per_tab=True)
         output = self.batch / "spring-batch-batch-import"
         seen = {}
 
@@ -229,7 +235,7 @@ class WindowTests(WindowTestCase):
         for i in range(40):
             courses = [row(None, f"PGME Postgrad Contact List Course {i}-{c}") for c in range(30)]
             write_partner_workbook(self.batch, f"pgme-postgrad-contact-list-{i:02}-with-a-long-name.xlsx", courses)
-        self.open_window()
+        self.save_settings()
         size = {}
 
         def measure():

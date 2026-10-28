@@ -355,7 +355,7 @@ def main() -> None:
     make_button.pack(side="left")
 
     callout_label = tk.Label(
-        frame, justify="left", anchor="w", wraplength=680, bg="#FFF4CE", fg="#5C4400", padx=10, pady=8
+        frame, name="callout", justify="left", anchor="w", wraplength=680, bg="#FFF4CE", fg="#5C4400", padx=10, pady=8
     )
     log_frame = ttk.Frame(frame)
     log_frame.grid(row=5, column=0, columnspan=3, sticky="nsew")
