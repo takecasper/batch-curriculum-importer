@@ -74,7 +74,7 @@ Run via the virtual environment wrapper:
 | `--skip-formula-materialization` | None | Skips cached formula conversion and leaves raw formulas in place. |
 | `--skip-hidden-rows` | None | Excludes rows explicitly marked as hidden in source workbooks. |
 
-`create-master-schedule-workbook.py --help` lists the same flags.
+`./run.sh --help` lists the same flags.
 
 ---
 
@@ -100,8 +100,10 @@ Before uploading the generated files into One45:
 ## Test
 
 ```bash
-.venv/bin/python -m unittest discover -s tests
+./check.sh             # lint (ruff) and every test; run before committing
 ```
+
+In a git checkout, `./setup-venv.sh` installs ruff from `requirements-dev.txt` and turns on the `.githooks/pre-commit` hook, which runs `./check.sh` on every commit. Besides behavior, the tests check that the code and docs avoid GLOSSARY.md's multi-word "Do Not Use" terms and that every quoted button name in the How to use text exists in the window.
 
 The window tests (`tests/test_gui_window.py`) open the real window and click through it, so they are skipped unless you ask for them. `GUI_SHOTS` saves a screenshot of each dialog; on macOS the terminal needs Screen Recording permission (System Settings > Privacy & Security) or the images come out blank.
 
