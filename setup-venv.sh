@@ -4,9 +4,13 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 VENV_DIR="$SCRIPT_DIR/.venv"
 
-# A venv whose interpreter was removed (e.g. a Python upgrade) is rebuilt.
-if [[ ! -x "$VENV_DIR/bin/python" ]] || ! "$VENV_DIR/bin/python" -c '' 2>/dev/null; then
-  python3 -m venv --clear "$VENV_DIR"
+# The app bundle passes the python.org Python it found as $PYTHON.
+PYTHON="${PYTHON:-python3}"
+
+# A venv whose interpreter was removed (e.g. a Python upgrade) or that was
+# built from a Python without Tkinter (the window needs it) is rebuilt.
+if [[ ! -x "$VENV_DIR/bin/python" ]] || ! "$VENV_DIR/bin/python" -c 'import tkinter' 2>/dev/null; then
+  "$PYTHON" -m venv --clear "$VENV_DIR"
 fi
 
 "$VENV_DIR/bin/python" -m pip install --upgrade pip

@@ -11,7 +11,15 @@ import unittest
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
-CHECKED = {".py", ".md", ".sh", ".command", ".toml"}
+CHECKED = {".py", ".md", ".sh", ".toml"}
+
+
+def is_script(path):
+    """The app bundle's launcher has no suffix; a shebang marks it as text to check."""
+    with path.open("rb") as f:
+        return f.read(2) == b"#!"
+
+
 # The glossary lists the terms; the changelog may name what was renamed.
 SKIPPED_FILES = {"GLOSSARY.md", "CHANGELOG.md", "test_glossary.py"}
 
@@ -50,7 +58,7 @@ class GlossaryTests(unittest.TestCase):
         for path in project_files():
             rel = path.relative_to(ROOT)
             found += [f"{rel} (file name): {t}" for t, p in patterns.items() if p.search(path.name)]
-            if path.suffix in CHECKED and path.name not in SKIPPED_FILES:
+            if (path.suffix in CHECKED or (not path.suffix and is_script(path))) and path.name not in SKIPPED_FILES:
                 for n, line in enumerate(path.read_text(encoding="utf-8").splitlines(), start=1):
                     found += [f"{rel}:{n}: {t}" for t, p in patterns.items() if p.search(line)]
         self.assertEqual(found, [], "GLOSSARY.md says not to use these:\n" + "\n".join(found))
