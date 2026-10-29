@@ -26,23 +26,25 @@ Terminology is defined in [GLOSSARY.md](GLOSSARY.md). Architectural decisions an
 - Python 3.9+ from [python.org](https://www.python.org/downloads/) with Tkinter. The app offers to download it when it is missing.
 - Shell scripts handle virtual environment provisioning automatically.
 
-Execution is strictly isolated within a local `.venv` managed by `setup-venv.sh`.
+Execution is isolated in a private virtual environment made by `setup-venv.sh`: `.venv` in a checkout, `~/Library/Application Support/One45 Schedule Wrangler/venv` for the app.
 
 ---
 
 ## Getting It
 
-1. On the [latest release](https://github.com/takecasper/batch-curriculum-importer/releases/latest), download **Source code (zip)** and unzip it. Keep the whole folder together: the app looks for its files next to it.
+1. On the [latest release](https://github.com/takecasper/batch-curriculum-importer/releases/latest), download the `One45-Schedule-Wrangler-<version>.zip` attachment and unzip it. You get `One45 Schedule Wrangler.app`, complete on its own; keep it anywhere, such as your Applications folder.
 2. Double-click `One45 Schedule Wrangler.app`. The first time, macOS says it could not verify the app. Click **Done**, open **System Settings > Privacy & Security**, scroll to **Security**, click **Open Anyway**, then open the app again. This happens once per Mac. (Before macOS 15 the message is different: click **Cancel**, then right-click the app and choose **Open**.)
 3. If Python is not installed, the app offers to download it from python.org. Apple's installer opens; when it finishes, open the app again.
-4. The first open builds the app's private environment, which takes about a minute. A notification shows while it runs. If it fails, a dialog names the log file in `~/Library/Logs/One45 Schedule Wrangler/`.
+4. The first open builds the app's private environment in `~/Library/Application Support/One45 Schedule Wrangler/`, which takes about a minute. A notification shows while it runs. If it fails, a dialog names the log file in `~/Library/Logs/One45 Schedule Wrangler/`.
+
+To share the app yourself, run `./build.sh` in a checkout and send the zip it writes to `dist/`.
 
 ---
 
 ## Quick Start (GUI)
 
 1. Place the Partner Workbooks into a single folder. Do not use subfolders.
-2. Double-click `One45 Schedule Wrangler.app`.
+2. Open `One45 Schedule Wrangler.app`.
 3. Click **Choose folder...** and select the input folder containing the source files.
 4. Choose the output format:
    - **One file, a tab per Portfolio:** Writes `<folder>-batch-import.xlsx` in the source folder.
@@ -110,7 +112,10 @@ Before uploading the generated files into One45:
 
 ```bash
 ./check.sh             # lint (ruff) and every test; run before committing
+./build.sh             # assemble dist/One45 Schedule Wrangler.app and its zip
 ```
+
+The app bundle in the checkout holds only the launcher, its icon and `Info.plist`; `build.sh` copies `wrangler.py`, `wrangler_gui.py`, `setup-venv.sh` and `requirements.txt` into it. Open the built app from `dist/`, not the one in the checkout. For a release, build from the tagged commit and attach the zip with `gh release upload <tag> dist/One45-Schedule-Wrangler-<version>.zip`.
 
 In a git checkout, `./setup-venv.sh` installs ruff from `requirements-dev.txt` and turns on the `.githooks/pre-commit` hook, which runs `./check.sh` on every commit. Besides behavior, the tests check that the code and docs avoid GLOSSARY.md's multi-word "Do Not Use" terms and that every quoted button name in the How to use text exists in the window.
 

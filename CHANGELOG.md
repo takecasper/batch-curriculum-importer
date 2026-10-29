@@ -1,5 +1,15 @@
 # Changelog
 
+## Unreleased
+
+### Fixed
+
+- A downloaded `One45 Schedule Wrangler.app` no longer stops with "needs the rest of its folder". macOS runs a downloaded app from a read-only copy of the `.app` alone (App Translocation), so the app now carries `wrangler.py`, `wrangler_gui.py`, `setup-venv.sh` and `requirements.txt` inside it and keeps its private environment in `~/Library/Application Support/One45 Schedule Wrangler/` instead of next to the app.
+
+### Changed
+
+- Releases ship the app as `One45-Schedule-Wrangler-<version>.zip`, built by the new `build.sh`, instead of the source zip. The app can live anywhere, such as the Applications folder.
+
 ## 0.2.0 - 2026-10-28
 
 ### Changed

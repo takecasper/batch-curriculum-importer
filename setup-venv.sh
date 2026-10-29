@@ -2,9 +2,10 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-VENV_DIR="$SCRIPT_DIR/.venv"
-
-# The app bundle passes the python.org Python it found as $PYTHON.
+# In a checkout the venv sits next to the scripts. The app bundle passes its
+# own location under ~/Library/Application Support as $VENV_DIR and the
+# python.org Python it found as $PYTHON.
+VENV_DIR="${VENV_DIR:-$SCRIPT_DIR/.venv}"
 PYTHON="${PYTHON:-python3}"
 
 # A venv whose interpreter was removed (e.g. a Python upgrade) or that was
@@ -26,4 +27,6 @@ if [[ -e "$SCRIPT_DIR/.git" ]]; then
 fi
 
 echo "Virtual environment ready: $VENV_DIR"
-echo "Run the tool with: $SCRIPT_DIR/run.sh"
+if [[ "$VENV_DIR" == "$SCRIPT_DIR/.venv" ]]; then
+  echo "Run the tool with: $SCRIPT_DIR/run.sh"
+fi

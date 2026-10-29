@@ -2,8 +2,12 @@
 # One45 Schedule Wrangler.app: Finder runs this on double-click.
 # No Terminal is attached, so every message is a dialog or a notification.
 # Finder gives apps a bare PATH, so Python is found by its python.org path.
-# tests/test_launcher.py drives this with WRANGLER_ROOT and WRANGLER_FRAMEWORKS
-# set, and stand-ins for osascript, curl, shasum and open on PATH.
+# build.sh puts wrangler.py, wrangler_gui.py, setup-venv.sh and requirements.txt
+# in Contents/Resources, so the app is complete on its own. Nothing is written
+# inside the bundle: Gatekeeper runs a quarantined app from a read-only copy
+# (App Translocation), so the venv and the lock live in Application Support.
+# tests/test_launcher.py drives this with WRANGLER_RESOURCES and
+# WRANGLER_FRAMEWORKS set, and stand-ins for osascript, curl, shasum and open on PATH.
 set -euo pipefail
 
 APP_NAME="One45 Schedule Wrangler"
@@ -14,13 +18,18 @@ PYTHON_VERSION="3.13.17"
 PYTHON_PKG_URL="https://www.python.org/ftp/python/$PYTHON_VERSION/python-$PYTHON_VERSION-macos11.pkg"
 PYTHON_PKG_SHA256="3053592af66128269efab37fe7851a4894920b27c442aeec99ce4d34d17c07e3"
 
-ROOT="${WRANGLER_ROOT:-$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)}"
+RESOURCES="${WRANGLER_RESOURCES:-$(cd "$(dirname "${BASH_SOURCE[0]}")/../Resources" && pwd)}"
 FRAMEWORKS="${WRANGLER_FRAMEWORKS:-/Library/Frameworks/Python.framework/Versions}"
-VENV_PY="$ROOT/.venv/bin/python"
+SUPPORT_DIR="$HOME/Library/Application Support/$APP_NAME"
+VENV_DIR="$SUPPORT_DIR/venv"
+VENV_PY="$VENV_DIR/bin/python"
 LOG_DIR="$HOME/Library/Logs/$APP_NAME"
 SETUP_LOG="$LOG_DIR/setup.log"
 RUN_LOG="$LOG_DIR/window.log"
-LOCK="$ROOT/.venv-setup.lock"
+LOCK="$SUPPORT_DIR/setup.lock"
+# The venv outlives app versions, so what it was built from is kept beside it.
+REQUIREMENTS="$RESOURCES/requirements.txt"
+INSTALLED_REQUIREMENTS="$SUPPORT_DIR/installed-requirements.txt"
 
 say() {  # say "text" [icon]; a dismissed dialog must not stop the script
   osascript -e "display dialog \"$1\" buttons {\"OK\"} default button \"OK\" with title \"$APP_NAME\" with icon ${2:-note}" >/dev/null 2>&1 || true
@@ -88,26 +97,30 @@ take_setup_lock() {
   trap 'rm -rf "$LOCK"' EXIT
 }
 
-if [[ ! -f "$ROOT/wrangler_gui.py" || ! -f "$ROOT/setup-venv.sh" ]]; then
-  say "$APP_NAME needs the rest of its folder. Put the app back in the folder you unzipped, next to README.md, and open it from there." caution
+if [[ ! -f "$RESOURCES/wrangler_gui.py" || ! -f "$RESOURCES/setup-venv.sh" || ! -f "$REQUIREMENTS" ]]; then
+  say "This copy of $APP_NAME is incomplete. Download the app again from the latest release. (In a checkout, run ./build.sh and open the app in dist/.)" caution
   exit 1
 fi
 
-mkdir -p "$LOG_DIR"
+mkdir -p "$LOG_DIR" "$SUPPORT_DIR"
 
-# First open, or after a Python upgrade broke the venv: build it.
-if [[ ! -x "$VENV_PY" ]] || ! "$VENV_PY" -c 'import openpyxl, tkinter' >/dev/null 2>&1; then
+# First open, a new version with different requirements, or a Python upgrade
+# that broke the venv: build it.
+if [[ ! -x "$VENV_PY" ]] || ! cmp -s "$REQUIREMENTS" "$INSTALLED_REQUIREMENTS" \
+    || ! "$VENV_PY" -c 'import openpyxl, tkinter' >/dev/null 2>&1; then
   PY="$(find_python)" || install_python
   take_setup_lock
   notify "Setting up $APP_NAME (first open only)..."
-  if ! PYTHON="$PY" "$ROOT/setup-venv.sh" >"$SETUP_LOG" 2>&1; then
+  if ! PYTHON="$PY" VENV_DIR="$VENV_DIR" "$RESOURCES/setup-venv.sh" >"$SETUP_LOG" 2>&1; then
     say "Setup did not finish. Details are in $SETUP_LOG" caution
     exit 1
   fi
+  cp "$REQUIREMENTS" "$INSTALLED_REQUIREMENTS"
 fi
 
 # Not exec: a crash at startup would otherwise vanish without a trace.
-if ! "$VENV_PY" "$ROOT/wrangler_gui.py" 2>"$RUN_LOG"; then
+# -B: no __pycache__ inside the bundle.
+if ! "$VENV_PY" -B "$RESOURCES/wrangler_gui.py" 2>"$RUN_LOG"; then
   say "$APP_NAME closed with an error. Details are in $RUN_LOG" caution
   exit 1
 fi
