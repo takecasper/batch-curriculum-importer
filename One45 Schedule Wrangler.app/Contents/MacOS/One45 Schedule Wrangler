@@ -45,14 +45,14 @@ notify() {
   osascript -e "display notification \"$1\" with title \"$APP_NAME\"" >/dev/null 2>&1 || true
 }
 
-# Newest python.org Python that is 3.9+ and has Tkinter. Apple's /usr/bin/python3
+# Newest python.org Python that is 3.10+ and has Tkinter. Apple's /usr/bin/python3
 # is never used: without the developer tools it only shows an install prompt.
 find_python() {
   local version py
   [[ -d "$FRAMEWORKS" ]] || return 1
   while read -r version; do
     py="$FRAMEWORKS/$version/bin/python3"
-    if [[ -x "$py" ]] && "$py" -c 'import sys, tkinter; sys.exit(0 if sys.version_info >= (3, 9) else 1)' >/dev/null 2>&1; then
+    if [[ -x "$py" ]] && "$py" -c 'import sys, tkinter; sys.exit(0 if sys.version_info >= (3, 10) else 1)' >/dev/null 2>&1; then
       echo "$py"
       return 0
     fi

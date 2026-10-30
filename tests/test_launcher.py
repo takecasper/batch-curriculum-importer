@@ -172,7 +172,13 @@ class LauncherRunTests(unittest.TestCase):
         bin_dir = self.frameworks / version / "bin"
         bin_dir.mkdir(parents=True)
         py = bin_dir / "python3"
-        py.write_text(f'#!/bin/bash\necho "python3[{version}] $*" >> "$CALLS"\n[[ "$*" == *tkinter* ]] && exit {0 if tkinter else 1}\nexit 0\n')
+        # The probe is `sys.version_info >= (3, N)`: fail it when this version is older.
+        py.write_text(
+            f'#!/bin/bash\necho "python3[{version}] $*" >> "$CALLS"\n'
+            f'floor="$(grep -o "(3, [0-9]*)" <<<"$*" | tr -dc "0-9 " | tr " " .)"\n'
+            f'[[ -n "$floor" && "$(printf "%s\\n" "$floor" {version} | sort -V | head -1)" != "$floor" ]] && exit 1\n'
+            f'[[ "$*" == *tkinter* ]] && exit {0 if tkinter else 1}\nexit 0\n'
+        )
         py.chmod(0o755)
         return py
 
@@ -210,6 +216,20 @@ class LauncherRunTests(unittest.TestCase):
         self.assertFalse(any(c.startswith("curl") for c in calls))
         self.assertFalse(self.lock.exists())
         self.assertEqual(self.installed.read_text(), "openpyxl\n")
+
+    def test_skips_a_python_older_than_3_10(self):
+        self.install_python("3.9")
+        self.install_python("3.10")
+        result, calls = self.run_launcher()
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn(f"setup PYTHON={self.frameworks}/3.10/bin/python3 VENV_DIR={self.venv}", calls)
+
+    def test_only_an_old_python_offers_the_download(self):
+        self.install_python("3.9")
+        result, calls = self.run_launcher(answer="Download", sha=PINNED_SHA256)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertTrue(any(c.startswith("curl ") for c in calls), calls)
+        self.assertFalse(any(c.startswith("setup") for c in calls))
 
     def test_skips_a_python_without_tkinter(self):
         self.install_python("3.13", tkinter=False)

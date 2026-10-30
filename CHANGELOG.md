@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+### Changed
+
+- Python 3.10 or newer is required (was 3.9, which reached end-of-life in October 2025). The app skips a python.org 3.9 and offers the download instead.
+
 ### Fixed
 
 - A downloaded `One45 Schedule Wrangler.app` no longer stops with "needs the rest of its folder". macOS runs a downloaded app from a read-only copy of the `.app` alone (App Translocation), so the app now carries `wrangler.py`, `wrangler_gui.py`, `setup-venv.sh` and `requirements.txt` inside it and keeps its private environment in `~/Library/Application Support/One45 Schedule Wrangler/` instead of next to the app.

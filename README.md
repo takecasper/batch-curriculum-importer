@@ -23,7 +23,7 @@ Terminology is defined in [GLOSSARY.md](GLOSSARY.md). Architectural decisions an
 ## Requirements & Environment
 
 - macOS 11 or later. The code avoids Mac-only paths, but Windows has no launcher yet.
-- Python 3.9+ from [python.org](https://www.python.org/downloads/) with Tkinter. The app offers to download it when it is missing.
+- Python 3.10+ from [python.org](https://www.python.org/downloads/) with Tkinter. The app offers to download it when it is missing.
 - Shell scripts handle virtual environment provisioning automatically.
 
 Execution is isolated in a private virtual environment made by `setup-venv.sh`: `.venv` in a checkout, `~/Library/Application Support/One45 Schedule Wrangler/venv` for the app.
