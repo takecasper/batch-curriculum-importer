@@ -7,6 +7,8 @@ name = "one45-schedule-wrangler"
 version = "0.3.0"
 description = "One45 Schedule Wrangler: build a Batch Import from a Batch of Partner Workbooks"
 requires-python = ">=3.10"
+license = "MIT"
+license-files = ["LICENSE"]
 dependencies = ["openpyxl>=3.1,<4.0"]
 
 [tool.setuptools]

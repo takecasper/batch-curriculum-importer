@@ -125,3 +125,9 @@ The window tests (`tests/test_gui_window.py`) open the real window and click thr
 GUI_TESTS=1 .venv/bin/python -m unittest discover -s tests
 GUI_TESTS=1 GUI_SHOTS=/tmp/wrangler-shots .venv/bin/python -m unittest discover -s tests -p test_gui_window.py
 ```
+
+---
+
+## License
+
+[MIT](LICENSE), copyright Acuity Insights Inc.
