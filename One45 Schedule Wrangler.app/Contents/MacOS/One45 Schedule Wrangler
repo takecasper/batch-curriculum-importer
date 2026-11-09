@@ -7,16 +7,23 @@
 # inside the bundle: Gatekeeper runs a quarantined app from a read-only copy
 # (App Translocation), so the venv and the lock live in Application Support.
 # tests/test_launcher.py drives this with WRANGLER_RESOURCES and
-# WRANGLER_FRAMEWORKS set, and stand-ins for osascript, curl, shasum and open on PATH.
+# WRANGLER_FRAMEWORKS set, and stand-ins for osascript, curl, pkgutil and open on PATH.
 set -euo pipefail
 
 APP_NAME="One45 Schedule Wrangler"
 
-# To offer a newer Python: change the version, then the hash to
-# `shasum -a 256` of the .pkg downloaded from that URL.
-PYTHON_VERSION="3.13.17"
-PYTHON_PKG_URL="https://www.python.org/ftp/python/$PYTHON_VERSION/python-$PYTHON_VERSION-macos11.pkg"
-PYTHON_PKG_SHA256="3053592af66128269efab37fe7851a4894920b27c442aeec99ce4d34d17c07e3"
+# The newest python.org release with a macOS installer is offered, so a new
+# Mac gets the current Python and Tk. When python.org's folder listing can't
+# be read, this release is offered instead. Either way the download is opened
+# only if Apple's pkgutil finds the Python Software Foundation's Developer ID
+# signature on it, which a pinned checksum could only do for one release.
+PYTHON_FTP="https://www.python.org/ftp/python"
+PYTHON_FALLBACK_VERSION="3.14.10"
+PYTHON_MIN_MINOR=10  # 3.10+: find_python's probe below says the same
+# Finder's PATH has /usr/sbin, but the test harness stands this in.
+PKGUTIL="${WRANGLER_PKGUTIL:-/usr/sbin/pkgutil}"
+PYTHON_SIGNED_STATUS="Status: signed by a developer certificate issued by Apple"
+PYTHON_SIGNER="Developer ID Installer: Python Software Foundation (BMM5U3QVKW)"
 
 RESOURCES="${WRANGLER_RESOURCES:-$(cd "$(dirname "${BASH_SOURCE[0]}")/../Resources" && pwd)}"
 FRAMEWORKS="${WRANGLER_FRAMEWORKS:-/Library/Frameworks/Python.framework/Versions}"
@@ -60,19 +67,50 @@ find_python() {
   return 1
 }
 
+python_pkg_url() {
+  echo "$PYTHON_FTP/$1/python-$1-macos11.pkg"
+}
+
+# Newest Python 3.10+ release whose macOS installer exists. A release's folder
+# appears with its first alpha, so the newest folders may hold no final
+# installer yet; each is asked for one, newest first, eight at most. A new
+# x.y.0 is offered as soon as its installer is: the app's needs are plain.
+latest_python_version() {
+  local listing version
+  listing="$(curl -fsSL --max-time 20 "$PYTHON_FTP/")" || return 1
+  while read -r version; do
+    if curl -fsI --max-time 20 -o /dev/null "$(python_pkg_url "$version")" 2>/dev/null; then
+      echo "$version"
+      return 0
+    fi
+  done < <(grep -oE 'href="3\.[0-9]+\.[0-9]+/"' <<<"$listing" | grep -oE '3\.[0-9]+\.[0-9]+' \
+           | awk -F. -v min="$PYTHON_MIN_MINOR" '$2 >= min' | sort -urV | head -8)
+  return 1
+}
+
 install_python() {
-  ask "Python from python.org isn't installed on this Mac. (Other Pythons can't open the window.) Download Python $PYTHON_VERSION, about 70 MB, and run its installer?" "Download" || exit 1
+  # Nothing goes over the network before the person agrees.
+  ask "Python from python.org isn't installed on this Mac. (Other Pythons can't open the window.) Download the newest Python, about 80 MB, and run its installer?" "Download" || exit 1
+  local version url pkg
+  notify "Finding the newest Python..."
+  version="$(latest_python_version)" || version="$PYTHON_FALLBACK_VERSION"
+  url="$(python_pkg_url "$version")"
   local dir="${TMPDIR:-/tmp}/one45-schedule-wrangler"
-  local pkg="$dir/python-$PYTHON_VERSION-macos11.pkg"
+  pkg="$dir/$(basename "$url")"
   mkdir -p "$dir"
-  notify "Downloading Python $PYTHON_VERSION..."
-  if ! curl -fsSL -o "$pkg" "$PYTHON_PKG_URL"; then
+  notify "Downloading Python $version..."
+  # A stalled download must reach the failure dialog, not hang unseen.
+  if ! curl -fsSL -o "$pkg" --connect-timeout 20 --speed-limit 1000 --speed-time 60 "$url"; then
     say "The download failed. Check the internet connection and try again, or install Python from python.org/downloads yourself." caution
     exit 1
   fi
-  if [[ "$(shasum -a 256 "$pkg" | cut -d' ' -f1)" != "$PYTHON_PKG_SHA256" ]]; then
+  # A tampered package reports "Status: package is invalid" and no chain; both
+  # the valid status and the signer are required all the same.
+  local signature
+  signature="$("$PKGUTIL" --check-signature "$pkg" 2>/dev/null || true)"
+  if ! grep -qF "$PYTHON_SIGNED_STATUS" <<<"$signature" || ! grep -qF "$PYTHON_SIGNER" <<<"$signature"; then
     rm -f "$pkg"
-    say "The downloaded Python installer did not match its expected checksum, so it was not opened. Install Python from python.org/downloads yourself." caution
+    say "The downloaded Python installer is not signed by the Python Software Foundation, so it was not opened. Install Python from python.org/downloads yourself." caution
     exit 1
   fi
   say "The Python installer will open now. When it finishes, open $APP_NAME again."

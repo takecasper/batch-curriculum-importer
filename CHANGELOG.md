@@ -4,6 +4,7 @@
 
 ### Changed
 
+- When no python.org Python is installed, the app offers the newest Python release that has a macOS installer instead of a fixed 3.13.17, falling back to 3.14.10 if python.org can't be read. The download is opened only if it carries the Python Software Foundation's Apple Developer ID signature.
 - Python 3.10 or newer is required (was 3.9, which reached end-of-life in October 2025). The app skips a python.org 3.9 and offers the download instead.
 
 ### Fixed

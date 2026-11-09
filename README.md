@@ -23,7 +23,7 @@ Terminology is defined in [GLOSSARY.md](GLOSSARY.md). Architectural decisions an
 ## Requirements & Environment
 
 - macOS 11 or later. The code avoids Mac-only paths, but Windows has no launcher yet.
-- Python 3.10+ from [python.org](https://www.python.org/downloads/) with Tkinter. The app offers to download it when it is missing.
+- Python 3.10+ from [python.org](https://www.python.org/downloads/) with Tkinter. When it is missing, the app offers to download the newest release.
 - Shell scripts handle virtual environment provisioning automatically.
 
 Execution is isolated in a private virtual environment made by `setup-venv.sh`: `.venv` in a checkout, `~/Library/Application Support/One45 Schedule Wrangler/venv` for the app.
@@ -34,7 +34,7 @@ Execution is isolated in a private virtual environment made by `setup-venv.sh`: 
 
 1. On the [latest release](https://github.com/takecasper/batch-curriculum-importer/releases/latest), download the `One45-Schedule-Wrangler-<version>.zip` attachment and unzip it. You get `One45 Schedule Wrangler.app`, complete on its own; keep it anywhere, such as your Applications folder.
 2. Double-click `One45 Schedule Wrangler.app`. The first time, macOS says it could not verify the app. Click **Done**, open **System Settings > Privacy & Security**, scroll to **Security**, click **Open Anyway**, then open the app again. This happens once per Mac. (Before macOS 15 the message is different: click **Cancel**, then right-click the app and choose **Open**.)
-3. If Python is not installed, the app offers to download it from python.org. Apple's installer opens; when it finishes, open the app again.
+3. If Python is not installed, the app offers to download the newest Python from python.org and checks that the download is signed by the Python Software Foundation. Apple's installer opens; when it finishes, open the app again.
 4. The first open builds the app's private environment in `~/Library/Application Support/One45 Schedule Wrangler/`, which takes about a minute. A notification shows while it runs. If it fails, a dialog names the log file in `~/Library/Logs/One45 Schedule Wrangler/`.
 
 To share the app yourself, run `./build.sh` in a checkout and send the zip it writes to `dist/`.

@@ -2,7 +2,7 @@
 
 The script is driven with a temp folder in place of the bundle's Resources, a
 temp HOME for the support dir and a fake Python.framework, with stand-ins for
-osascript, curl, shasum and open on PATH, so no dialog, download or installer
+osascript, curl, pkgutil and open on PATH, so no dialog, download or installer
 runs here.
 """
 
@@ -22,7 +22,10 @@ LAUNCHER = APP / "Contents" / "MacOS" / "One45 Schedule Wrangler"
 BUILD = ROOT / "build.sh"
 RUNTIME_FILES = ("wrangler.py", "wrangler_gui.py", "setup-venv.sh", "requirements.txt")
 SUPPORT = Path("Library") / "Application Support" / "One45 Schedule Wrangler"
-PINNED_SHA256 = re.search(r'^PYTHON_PKG_SHA256="([0-9a-f]{64})"', LAUNCHER.read_text(), re.M).group(1)
+FALLBACK_VERSION = re.search(r'^PYTHON_FALLBACK_VERSION="([0-9.]+)"', LAUNCHER.read_text(), re.M).group(1)
+SIGNER = re.search(r'^PYTHON_SIGNER="([^"]+)"', LAUNCHER.read_text(), re.M).group(1)
+SIGNED_STATUS = re.search(r'^PYTHON_SIGNED_STATUS="([^"]+)"', LAUNCHER.read_text(), re.M).group(1)
+INVALID_STATUS = "Status: package is invalid (checksum did not verify)"
 VERSION = re.search(r'^version = "([^"]+)"', (ROOT / "pyproject.toml").read_text(), re.M).group(1)
 
 
@@ -137,8 +140,16 @@ class LauncherRunTests(unittest.TestCase):
         self.fake("osascript", 'echo "osascript $*" >> "$CALLS"\n'
                   'if [[ "$*" == *"display dialog"* ]]; then echo "${DIALOG_ANSWER:-OK}"; '
                   '[[ "$*" == *\'buttons {"OK"}\'* ]] && exit "${DIALOG_EXIT:-0}"; fi; exit 0')
-        self.fake("curl", 'echo "curl $*" >> "$CALLS"; while [[ $# -gt 0 ]]; do [[ $1 == -o ]] && out=$2; shift; done; cp "$FAKE_PKG" "$out"')
-        self.fake("shasum", 'echo "${FAKE_SHA:-not-the-hash}  $3"')
+        # curl: a HEAD (-I) succeeds for the installers in $FAKE_PKG_VERSIONS; a GET
+        # without -o is python.org's folder listing, built from $FAKE_LISTING (empty:
+        # the listing can't be read); a GET with -o downloads $FAKE_PKG.
+        self.fake("curl", 'echo "curl $*" >> "$CALLS"; out=""; head=0; url=""\n'
+                  'while [[ $# -gt 0 ]]; do case $1 in -o) out=$2; shift;; -*) [[ $1 == *I* ]] && head=1;; *) url=$1;; esac; shift; done\n'
+                  'if (( head )); then for v in $FAKE_PKG_VERSIONS; do [[ $url == */$v/python-$v-*.pkg ]] && exit 0; done; exit 22; fi\n'
+                  'if [[ -z $out ]]; then [[ -n $FAKE_LISTING ]] || exit 6; for v in $FAKE_LISTING; do echo "<a href=\\"$v/\\">$v/</a>"; done; exit 0; fi\n'
+                  'cp "$FAKE_PKG" "$out"')
+        # pkgutil: the launcher runs it by path ($WRANGLER_PKGUTIL here), not from PATH.
+        self.fake("pkgutil", 'echo "pkgutil $*" >> "$CALLS"; echo "   ${FAKE_STATUS}"; echo "   Certificate Chain:"; echo "    1. ${FAKE_SIGNER}"')
         self.fake("open", 'echo "open $*" >> "$CALLS"')
         self.stub = tmp / "venv-python"
         self.stub_python(exit_code=0)
@@ -182,7 +193,8 @@ class LauncherRunTests(unittest.TestCase):
         py.chmod(0o755)
         return py
 
-    def run_launcher(self, answer="OK", sha=None, dialog_exit=0):
+    def run_launcher(self, answer="OK", signed=False, dialog_exit=0, listing="", pkg_versions="",
+                     status=None, signer=None):
         env = {
             **os.environ,
             "PATH": f"{self.bin}:/usr/bin:/bin",
@@ -190,10 +202,14 @@ class LauncherRunTests(unittest.TestCase):
             "DIALOG_ANSWER": answer,
             "DIALOG_EXIT": str(dialog_exit),
             "FAKE_PKG": str(self.pkg),
-            "FAKE_SHA": sha or "not-the-hash",
+            "FAKE_STATUS": status or (SIGNED_STATUS + " for distribution" if signed else INVALID_STATUS),
+            "FAKE_SIGNER": signer or (SIGNER if signed else "Developer ID Installer: Somebody Else (ZZZZZZZZZZ)"),
+            "FAKE_LISTING": listing,
+            "FAKE_PKG_VERSIONS": pkg_versions,
             "STUB": str(self.stub),
             "WRANGLER_RESOURCES": str(self.resources),
             "WRANGLER_FRAMEWORKS": str(self.frameworks),
+            "WRANGLER_PKGUTIL": str(self.bin / "pkgutil"),
             "TMPDIR": self._tmp.name,
             "HOME": self._tmp.name,  # the venv goes under ~/Library/Application Support, the logs under ~/Library/Logs
         }
@@ -226,9 +242,9 @@ class LauncherRunTests(unittest.TestCase):
 
     def test_only_an_old_python_offers_the_download(self):
         self.install_python("3.9")
-        result, calls = self.run_launcher(answer="Download", sha=PINNED_SHA256)
+        result, calls = self.run_launcher(answer="Download", signed=True)
         self.assertEqual(result.returncode, 0, result.stderr)
-        self.assertTrue(any(c.startswith("curl ") for c in calls), calls)
+        self.assertTrue(any(c.startswith("curl -fsSL -o ") for c in calls), calls)
         self.assertFalse(any(c.startswith("setup") for c in calls))
 
     def test_skips_a_python_without_tkinter(self):
@@ -238,17 +254,52 @@ class LauncherRunTests(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertIn(f"setup PYTHON={self.frameworks}/3.12/bin/python3 VENV_DIR={self.venv}", calls)
 
-    def test_no_python_offers_the_download_and_opens_the_installer(self):
-        result, calls = self.run_launcher(answer="Download", sha=PINNED_SHA256)
+    def probes(self, calls):
+        return [c for c in calls if c.startswith("curl -fsI ")]
+
+    def download(self, calls):
+        return next(c for c in calls if c.startswith("curl -fsSL -o "))
+
+    def test_no_python_offers_the_newest_release_with_an_installer(self):
+        # 3.16.0 has only pre-releases, so no final installer yet; 2.7.18 is not Python 3.
+        result, calls = self.run_launcher(answer="Download", signed=True,
+                                          listing="3.14.10 3.16.0 2.7.18 3.15.1 3.15.2",
+                                          pkg_versions="3.15.2 3.15.1 3.14.10")
         self.assertEqual(result.returncode, 0, result.stderr)
-        curl = next(c for c in calls if c.startswith("curl "))
-        self.assertIn("https://www.python.org/ftp/python/3.13.17/python-3.13.17-macos11.pkg", curl)
+        # The question comes before any network call.
+        first_dialog = next(i for i, c in enumerate(calls) if "display dialog" in c)
+        self.assertFalse(any(c.startswith("curl") for c in calls[:first_dialog]), calls)
+        self.assertEqual(len(self.probes(calls)), 2, calls)  # 3.16.0 had none, 3.15.2 did; nothing older was asked
+        self.assertIn("https://www.python.org/ftp/python/3.15.2/python-3.15.2-macos11.pkg", self.download(calls))
+        self.assertTrue(any("Downloading Python 3.15.2..." in c for c in calls), calls)
+        self.assertTrue(any(c.startswith("pkgutil --check-signature ") and c.endswith("/python-3.15.2-macos11.pkg") for c in calls), calls)
+
+    def test_a_listing_without_a_final_installer_falls_back(self):
+        result, calls = self.run_launcher(answer="Download", signed=True,
+                                          listing=" ".join(f"3.{m}.0" for m in range(10, 30)), pkg_versions="")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(len(self.probes(calls)), 8, calls)  # newest eight only
+        self.assertIn(f"/{FALLBACK_VERSION}/", self.download(calls))
+
+    def test_releases_older_than_the_floor_are_never_offered(self):
+        # A 3.9 would install, then be skipped by find_python on every open.
+        result, calls = self.run_launcher(answer="Download", signed=True,
+                                          listing="3.9.13 3.8.20", pkg_versions="3.9.13 3.8.20")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(self.probes(calls), [], calls)
+        self.assertIn(f"/{FALLBACK_VERSION}/", self.download(calls))
         self.assertTrue(any(c.startswith("open ") and c.endswith(".pkg") for c in calls), calls)
         self.assertTrue(any("open One45 Schedule Wrangler again" in c for c in calls), calls)
         self.assertFalse(any(c.startswith("setup") for c in calls))
 
+    def test_when_the_listing_cannot_be_read_the_fallback_version_is_offered(self):
+        result, calls = self.run_launcher(answer="Download", signed=True)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn(f"/{FALLBACK_VERSION}/python-{FALLBACK_VERSION}-macos11.pkg", self.download(calls))
+        self.assertTrue(any(f"Downloading Python {FALLBACK_VERSION}..." in c for c in calls), calls)
+
     def test_dismissing_the_installer_dialog_still_opens_the_installer(self):
-        result, calls = self.run_launcher(answer="Download", sha=PINNED_SHA256, dialog_exit=1)
+        result, calls = self.run_launcher(answer="Download", signed=True, dialog_exit=1)
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertTrue(any(c.startswith("open ") and c.endswith(".pkg") for c in calls), calls)
 
@@ -257,12 +308,22 @@ class LauncherRunTests(unittest.TestCase):
         self.assertEqual(result.returncode, 1)
         self.assertFalse(any(c.startswith(("curl", "open", "setup")) for c in calls), calls)
 
-    def test_a_download_with_the_wrong_hash_is_never_opened(self):
-        result, calls = self.run_launcher(answer="Download", sha="0" * 64)
+    def assert_not_opened(self, result, calls):
         self.assertNotEqual(result.returncode, 0)
-        self.assertTrue(any(c.startswith("curl ") for c in calls))
+        self.assertTrue(any(c.startswith("curl -fsSL -o ") for c in calls), calls)
         self.assertFalse(any(c.startswith("open ") for c in calls), calls)
-        self.assertTrue(any("did not match" in c for c in self.dialogs(calls)), calls)
+        self.assertTrue(any("not signed" in c for c in self.dialogs(calls)), calls)
+
+    def test_a_download_signed_by_someone_else_is_never_opened(self):
+        result, calls = self.run_launcher(answer="Download", status=SIGNED_STATUS + " for distribution",
+                                          signer="Developer ID Installer: Somebody Else (ZZZZZZZZZZ)")
+        self.assert_not_opened(result, calls)
+
+    def test_a_tampered_download_is_never_opened(self):
+        # pkgutil reports an invalid package without a certificate chain; a chain
+        # alongside a bad status must not pass either.
+        result, calls = self.run_launcher(answer="Download", status=INVALID_STATUS, signer=SIGNER)
+        self.assert_not_opened(result, calls)
 
     def test_setup_failure_shows_a_dialog_naming_the_log(self):
         self.install_python("3.13")
