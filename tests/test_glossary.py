@@ -26,7 +26,7 @@ SKIPPED_FILES = {"GLOSSARY.md", "CHANGELOG.md", "test_glossary.py"}
 
 def banned_terms():
     terms = set()
-    for line in (ROOT / "GLOSSARY.md").read_text(encoding="utf-8").splitlines():
+    for line in (ROOT / "docs" / "GLOSSARY.md").read_text(encoding="utf-8").splitlines():
         cells = [c.strip() for c in line.strip().strip("|").split("|")]
         if not cells[0].startswith("**"):
             continue

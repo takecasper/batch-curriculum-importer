@@ -2,7 +2,7 @@
 
 the One45 Schedule Wrangler prepares all course schedule worksheets for the One45 curriculum importer at once. It processes each individual course curriculum by surfacing hidden data and formulas, normalizing headers, converting date and time formats, and highlighting cells that require manual review. The tool then consolidates these individual files into a single Batch Import with dedicated tabs for each portfolio, allowing you to run one import per portfolio instead of one per course.
 
-For project terminology, see GLOSSARY.md. Architectural decisions and technical trade-offs are documented in DESIGN.md, and importer column rules are detailed in IMPORT-FORMAT.md.
+For project terminology, see [docs/GLOSSARY.md](docs/GLOSSARY.md). Architectural decisions and technical trade-offs are documented in [docs/DESIGN.md](docs/DESIGN.md), and importer column rules are detailed in [docs/IMPORT-FORMAT.md](docs/IMPORT-FORMAT.md).
 
 ---
 
@@ -130,7 +130,7 @@ The app bundle within the git checkout acts purely as a shell containing the lau
 To cut a release, build from the tagged commit and attach the zip via the CLI:
 `gh release upload <tag> "dist/One45-Schedule-Wrangler-<version>.zip"`
 
-In a fresh checkout, running `./setup-venv.sh` automatically installs `ruff` from `requirements-dev.txt` and enables the `.githooks/pre-commit` hook, which enforces `./check.sh` on every commit. The test suite guarantees behavioral integrity, verifies that `GLOSSARY.md`'s "Do Not Use" terms are avoided, and ensures UI labels in the documentation perfectly match the application window.
+In a fresh checkout, running `./setup-venv.sh` automatically installs `ruff` from `requirements-dev.txt` and enables the `.githooks/pre-commit` hook, which enforces `./check.sh` on every commit. The test suite guarantees behavioral integrity, verifies that `docs/GLOSSARY.md`'s "Do Not Use" terms are avoided, and ensures UI labels in the documentation perfectly match the application window.
 
 ### Testing the GUI
 
