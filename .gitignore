@@ -1,5 +1,6 @@
 # macOS
 .DS_Store
+._*
 
 # Python
 .venv/
@@ -7,15 +8,26 @@ __pycache__/
 *.pyc
 *.pyo
 *.egg-info/
+# Unused: setup-venv.sh installs from requirements.txt with pip.
+uv.lock
 
 # Editors / tooling
 .ruff_cache/
 .claude/
+.idea/
+.vscode/
+*.swp
 
-# PyInstaller build artifacts
+# build.sh output
 build/
 dist/
-*.spec
+
+# Workbooks hold Partner data and never belong in git; tests make their own.
+*.xlsx
+*.xlsm
+*.xls
+*.csv
+~$*
 
 # Local test scratch
 schedule-workbooks/
