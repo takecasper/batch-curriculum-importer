@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 One45 Schedule Wrangler window: choose a Batch folder, make the Batch Import,
-open it. A front end for wrangler.py; see GLOSSARY.md.
+open it. A front end for wrangler.py; see docs/GLOSSARY.md.
 """
 
 from __future__ import annotations

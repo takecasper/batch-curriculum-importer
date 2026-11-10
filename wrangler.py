@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 One45 Schedule Wrangler: turn a Batch of Partner Workbooks into one Batch Import
-using canonical, case/order-sensitive headers. See GLOSSARY.md for the terms below.
+using canonical, case/order-sensitive headers. See docs/GLOSSARY.md for the terms below.
 
 Behavior:
 - Looks for .xlsx workbooks in (in order):
