@@ -1,6 +1,6 @@
 # One45 Schedule Wrangler
 
-the One45 Schedule Wrangler prepares all course schedule worksheets for the One45 curriculum importer at once. It processes each individual course curriculum by surfacing hidden data and formulas, normalizing headers, converting date and time formats, and highlighting cells that require manual review. The tool then consolidates these individual files into a single master workbook with dedicated tabs for each portfolio, allowing you to run one import per portfolio instead of one per course.
+the One45 Schedule Wrangler prepares all course schedule worksheets for the One45 curriculum importer at once. It processes each individual course curriculum by surfacing hidden data and formulas, normalizing headers, converting date and time formats, and highlighting cells that require manual review. The tool then consolidates these individual files into a single Batch Import with dedicated tabs for each portfolio, allowing you to run one import per portfolio instead of one per course.
 
 For project terminology, see GLOSSARY.md. Architectural decisions and technical trade-offs are documented in DESIGN.md, and importer column rules are detailed in IMPORT-FORMAT.md.
 
@@ -43,7 +43,7 @@ For project terminology, see GLOSSARY.md. Architectural decisions and technical 
 1. Download all schedule upload files into a single folder with no subfolders.
 2. Launch `One45 Schedule Wrangler.app`.
 3. Click **Choose folder...** and select your input directory.
-4. Select your output file preference.
+4. Under **Output**, choose **One file, a tab per Portfolio** or **A separate file per Portfolio**.
 5. Click **Make Batch Import**.
    - *If any workbooks are missing Portfolio designations, the UI will prompt you to manually assign a Portfolio, route them to individual File Tabs, or cancel.*
 6. Click **Open Batch Import** (or **Open folder**) to review the generated files.
